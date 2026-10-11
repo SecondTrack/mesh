@@ -1,0 +1,358 @@
+/* Mesh — English base (key == value). English is the fallback for every language. */
+
+// Chats list / connection status
+"Encrypted · Nostr" = "Encrypted · Nostr";
+"Search contacts" = "Search contacts";
+"Chats" = "Chats";
+"Me" = "Me";
+"Connected" = "Connected";
+"Connecting …" = "Connecting …";
+"You: " = "You: ";
+
+// Chat
+"Message" = "Message";
+"cancel" = "cancel";
+"Microphone unavailable" = "Microphone unavailable";
+"Sending…" = "Sending…";
+"Recording too short" = "Recording too short";
+"Voice effect" = "Voice effect";
+"Voice effect: %@" = "Voice effect: %@";
+"Delete" = "Delete";
+
+// Me / profile menu
+"Profile & Settings" = "Profile & Settings";
+"Edit profile" = "Edit profile";
+"Name, picture, about" = "Name, picture, about";
+"My Code" = "My Code";
+"QR to share & scan" = "QR to share & scan";
+"Security" = "Security";
+"PIN, keys" = "PIN, keys";
+"Sound & Microphone" = "Sound & Microphone";
+"Gain, voice effect" = "Gain, voice effect";
+"Your name" = "Your name";
+"Add a description" = "Add a description";
+
+// Security
+"End-to-end encrypted" = "End-to-end encrypted";
+"Public key" = "Public key";
+"npub — shareable" = "npub — shareable";
+"Show secret key" = "Show secret key";
+"nsec — PIN required" = "nsec — PIN required";
+"Share your secret key (nsec) with no one. Whoever has it can take over your identity and read along." = "Share your secret key (nsec) with no one. Whoever has it can take over your identity and read along.";
+"Wrong PIN" = "Wrong PIN";
+"PINs don't match" = "PINs don't match";
+"PIN changed" = "PIN changed";
+"Failed" = "Failed";
+"Locked" = "Locked";
+"Secret key" = "Secret key";
+
+// Common buttons
+"Cancel" = "Cancel";
+"OK" = "OK";
+"npub copied" = "npub copied";
+
+// Lock screen (PIN pad)
+"Repeat PIN" = "Repeat PIN";
+"Set a PIN" = "Set a PIN";
+"Enter again to confirm" = "Enter again to confirm";
+"%d digits — protects your key on this device" = "%d digits — protects your key on this device";
+"Enter PIN" = "Enter PIN";
+"Setup failed" = "Setup failed";
+
+// Peer profile
+"Contact" = "Contact";
+"SAFETY NUMBER" = "SAFETY NUMBER";
+"Verified" = "Verified";
+"Not verified (TOFU)" = "Not verified (TOFU)";
+"Unverify" = "Unverify";
+"Verify" = "Verify";
+
+// Add contact
+"Add contact" = "Add contact";
+"NPUB OR HEX PUBKEY" = "NPUB OR HEX PUBKEY";
+"⌗  Scan QR" = "⌗  Scan QR";
+"NAME (OPTIONAL)" = "NAME (OPTIONAL)";
+"Display name" = "Display name";
+"Add" = "Add";
+"Invalid" = "Invalid";
+"Please enter a valid npub or 64-character hex pubkey." = "Please enter a valid npub or 64-character hex pubkey.";
+
+// QR scanner
+"No camera available" = "No camera available";
+"Hold the npub QR in the frame" = "Hold the npub QR in the frame";
+"Paste code" = "Paste code";
+
+// Profile edit
+"Save" = "Save";
+"NAME" = "NAME";
+"e.g. Anna" = "e.g. Anna";
+"ABOUT" = "ABOUT";
+"Short description" = "Short description";
+"Camera" = "Camera";
+"Photo Library" = "Photo Library";
+"Profile picture" = "Profile picture";
+
+// Audio settings
+"Audio Lab" = "Audio Lab";
+"Tune recording quality live" = "Tune recording quality live";
+"RECORDING" = "RECORDING";
+"Apple Voice Unit" = "Apple Voice Unit";
+"Hardware noise reduction + AGC" = "Hardware noise reduction + AGC";
+"Distortion" = "Distortion";
+"PLAYBACK" = "PLAYBACK";
+"Playback volume" = "Playback volume";
+"Make voice messages louder" = "Make voice messages louder";
+"In the Audio Lab you record once and instantly hear the result as you move the sliders — noise filter, high-pass, low-pass, presence, volume. “Set as default” uses the values for all voice messages." = "In the Audio Lab you record once and instantly hear the result as you move the sliders — noise filter, high-pass, low-pass, presence, volume. “Set as default” uses the values for all voice messages.";
+"On" = "On";
+"Off" = "Off";
+
+// Playback volume levels
+"Normal" = "Normal";
+"Loud" = "Loud";
+"Very loud" = "Very loud";
+"Extremely loud" = "Extremely loud";
+
+// Audio lab
+"Record" = "Record";
+"Say a sentence, then turn the sliders." = "Say a sentence, then turn the sliders.";
+"▶ Original" = "▶ Original";
+"▶ Processed" = "▶ Processed";
+"Noise reduction" = "Noise reduction";
+"High-pass (low cut)" = "High-pass (low cut)";
+"Low-pass (high cut)" = "Low-pass (high cut)";
+"Presence / clarity" = "Presence / clarity";
+"Volume" = "Volume";
+"Set as default" = "Set as default";
+"Recording ready (%d s) — now test the sliders" = "Recording ready (%d s) — now test the sliders";
+"Recording empty — try again" = "Recording empty — try again";
+"⏹  Stop" = "⏹  Stop";
+"Recording … (max %d s)" = "Recording … (max %d s)";
+"Record first" = "Record first";
+"Applied — now active for all voice messages." = "Applied — now active for all voice messages.";
+
+// My Code screen
+
+// Noise-reduction levels
+"Mild" = "Mild";
+"Strong" = "Strong";
+"Very strong" = "Very strong";
+"Medium" = "Medium";
+
+// Voice effect names
+"High (chipmunk)" = "High (chipmunk)";
+"Deep" = "Deep";
+"Robot" = "Robot";
+"Alien" = "Alien";
+"Other voice (same tempo)" = "Other voice (same tempo)";
+
+// Chat preview placeholders
+"Photo" = "Photo";
+"Voice message" = "Voice message";
+"Too many attempts — try again in %d:%02d" = "Too many attempts — try again in %d:%02d";
+"Key belongs to another device" = "Key belongs to another device";
+"Key bound to this device" = "Key bound to this device";
+"Key not bound to device (keychain unavailable)" = "Key not bound to device (keychain unavailable)";
+"Write it down on paper. It can't be copied, so it never lands in the clipboard." = "Write it down on paper. It can't be copied, so it never lands in the clipboard.";
+"Image can't be shown" = "Image can't be shown";
+"Image from unknown contact. Tap to show." = "Image from unknown contact. Tap to show.";
+"Show" = "Show";
+"Your secure messenger" = "Your secure messenger";
+"Connecting via Tor …" = "Connecting via Tor …";
+"Connecting to the network …" = "Connecting to the network …";
+"%d of %d relays" = "%d of %d relays";
+"Connected to the network" = "Connected to the network";
+"Forgot PIN?" = "Forgot PIN?";
+"Reset Mesh?" = "Reset Mesh?";
+"Without the PIN your key cannot be opened. Resetting deletes your key, all messages and contacts on this device. You start with a new identity." = "Without the PIN your key cannot be opened. Resetting deletes your key, all messages and contacts on this device. You start with a new identity.";
+"Delete everything?" = "Delete everything?";
+"This cannot be undone." = "This cannot be undone.";
+"Continue" = "Continue";
+"%@ · request" = "%@ · request";
+"Not anonymous: relays see your IP address and your contact list." = "Not anonymous: relays see your IP address and your contact list.";
+"Device clock is wrong: certificates can only be checked partially." = "Device clock is wrong: certificates can only be checked partially.";
+"Keys stay on this device only, no cloud backup." = "Keys stay on this device only, no cloud backup.";
+"Show media from this contact?" = "Show media from this contact?";
+"Only accept contacts you know. Images, voice messages and the profile picture from this contact will then be shown." = "Only accept contacts you know. Images, voice messages and the profile picture from this contact will then be shown.";
+"Keychain not available — try again" = "Keychain not available — try again";
+"Delete chat" = "Delete chat";
+"Block" = "Block";
+"This QR code doesn't contain a contact key." = "This QR code doesn't contain a contact key.";
+"Data can't be read — restart the app" = "Data can't be read — restart the app";
+
+/* Antworten, Reaktionen, Selbstlöschen */
+"%@ set disappearing messages to %@" = "%@ set disappearing messages to %@";
+"%@ turned disappearing messages off" = "%@ turned disappearing messages off";
+"%d days" = "%d days";
+"%d h" = "%d h";
+"%d min" = "%d min";
+"5 minutes" = "5 minutes";
+"1 hour" = "1 hour";
+"1 day" = "1 day";
+"1 week" = "1 week";
+"You set disappearing messages to %@" = "You set disappearing messages to %@";
+"You turned disappearing messages off" = "You turned disappearing messages off";
+"Disappearing messages: %@" = "Disappearing messages: %@";
+"Disappearing messages off" = "Disappearing messages off";
+"Disappearing messages" = "Disappearing messages";
+"New messages disappear on both devices" = "New messages disappear on both devices";
+"The clock starts" = "The clock starts";
+"From seen" = "From seen";
+"From sent" = "From sent";
+"Clear chat" = "Clear chat";
+"Clear this chat?" = "Clear this chat?";
+"Clear for me" = "Clear for me";
+"Clear for everyone" = "Clear for everyone";
+"Reply" = "Reply";
+"Reply to %@" = "Reply to %@";
+"Copy" = "Copy";
+"Delete for me" = "Delete for me";
+"Delete for everyone" = "Delete for everyone";
+"Message deleted" = "Message deleted";
+"You" = "You";
+"File" = "File";
+"Contact: %@" = "Contact: %@";
+
+/* Notlöschung */
+"Panic PIN" = "Panic PIN";
+"Second PIN that deletes everything" = "Second PIN that deletes everything";
+"Emergency wipe" = "Emergency wipe";
+"A codeword by message deletes everything" = "A codeword by message deletes everything";
+"Set a new panic PIN" = "Set a new panic PIN";
+"Remove panic PIN" = "Remove panic PIN";
+"A second PIN that does not unlock but deletes the app at once and for good, in case you are forced to unlock. It works on this device, offline too. It must not be your real PIN." = "A second PIN that does not unlock but deletes the app at once and for good, in case you are forced to unlock. It works on this device, offline too. It must not be your real PIN.";
+"Panic PIN set" = "Panic PIN set";
+"Must not be your real PIN" = "Must not be your real PIN";
+"Codeword" = "Codeword";
+"Emergency wipe off" = "Emergency wipe off";
+"Codeword saved" = "Codeword saved";
+"Send emergency wipe" = "Send emergency wipe";
+"Needs the codeword this contact has set" = "Needs the codeword this contact has set";
+"Deletes the device of %@ at once and for good, but only with the codeword %@ has set. Only a hash is sent; the codeword never leaves this device and is not stored." = "Deletes the device of %@ at once and for good, but only with the codeword %@ has set. Only a hash is sent; the codeword never leaves this device and is not stored.";
+"Emergency wipe sent" = "Emergency wipe sent";
+
+/* Dateien, Videos, Kontaktkarten */
+"Audio" = "Audio";
+"No other contacts to share" = "No other contacts to share";
+"Photo from library" = "Photo from library";
+"Video" = "Video";
+"Share contact" = "Share contact";
+"Video too long to send" = "Video too long to send";
+
+/* Signal */
+"Messages use Signal (forward secrecy) as soon as a contact's key bundle is known, NIP-44 before that." = "Messages use Signal (forward secrecy) as soon as a contact's key bundle is known, NIP-44 before that.";
+"Encrypted with Signal: each message has its own key (forward secrecy)." = "Encrypted with Signal: each message has its own key (forward secrecy).";
+"Encrypted with NIP-44. Signal starts as soon as you have exchanged messages." = "Encrypted with NIP-44. Signal starts as soon as you have exchanged messages.";
+
+/* Live-QR */
+"Copy link" = "Copy link";
+"Link copied" = "Link copied";
+
+/* Identitäten */
+"Identities" = "Identities";
+"Switch or add" = "Switch or add";
+"SWITCH OR ADD" = "SWITCH OR ADD";
+"Import with nsec" = "Import with nsec";
+"Add an existing identity" = "Add an existing identity";
+"Unified inbox" = "Unified inbox";
+"Chats of all identities in one list" = "Chats of all identities in one list";
+"New" = "New";
+"New identity" = "New identity";
+"A second identity with its own key, contacts and chats. It uses the same PIN and receives in the background." = "A second identity with its own key, contacts and chats. It uses the same PIN and receives in the background.";
+"Create" = "Create";
+"The secret key of an existing identity (nsec1…)." = "The secret key of an existing identity (nsec1…).";
+
+/* Mitteilungen */
+"New message" = "New message";
+
+/* Sicherheitsnummer */
+"The safety number with %@ has changed" = "The safety number with %@ has changed";
+"Safety number changed" = "Safety number changed";
+"Appears as soon as you have exchanged messages. Only then can you verify." = "Appears as soon as you have exchanged messages. Only then can you verify.";
+"Set again" = "Set again";
+"This file type is not opened on this device for security reasons." = "This file type is not opened on this device for security reasons.";
+"Wrong PIN, not a valid nsec, or this identity is already here." = "Wrong PIN, not a valid nsec, or this identity is already here.";
+"Set the emergency-wipe codeword again so that it also covers the new identity." = "Set the emergency-wipe codeword again so that it also covers the new identity.";
+"Must not be your panic PIN" = "Must not be your panic PIN";
+"If a contact sends this codeword, the app is deleted at once and for good: identity, contacts, all messages. Only the hash travels, never the codeword. Give it only to people you trust completely: whoever knows it can wipe you. Once used, choose a new codeword." = "If a contact sends this codeword, the app is deleted at once and for good: identity, contacts, all messages. Only the hash travels, never the codeword. Give it only to people you trust completely: whoever knows it can wipe you. Once used, choose a new codeword.";
+
+// Schutzart: PIN oder Wörter
+"How should Mesh be protected?" = "How should Mesh be protected?";
+"Your key is locked with this. It matters when someone copies the data off this device. You can change it later under Security." = "Your key is locked with this. It matters when someone copies the data off this device. You can change it later under Security.";
+"6-digit PIN" = "6-digit PIN";
+"1 million combinations · cracked in seconds" = "1 million combinations · cracked in seconds";
+"Quick to type. Safe only as long as nobody copies the device." = "Quick to type. Safe only as long as nobody copies the device.";
+"%d words" = "%d words";
+"RECOMMENDED" = "RECOMMENDED";
+"≈ %d bit · about 60,000 years*" = "≈ %d bit · about 60,000 years*";
+"The app rolls random words for you to write down. Strong even against a copied device." = "The app rolls random words for you to write down. Strong even against a copied device.";
+"SAFEST" = "SAFEST";
+"≈ %d bit · about 500 million years*" = "≈ %d bit · about 500 million years*";
+"One word more makes it 7776 times harder. For high risk." = "One word more makes it 7776 times harder. For high risk.";
+"* with 1000 graphics cards, after copying the device. Without a copy the lock slows every guess down and deletes everything after 30 wrong tries." = "* with 1000 graphics cards, after copying the device. Without a copy the lock slows every guess down and deletes everything after 30 wrong tries.";
+"Your %d words" = "Your %d words";
+"Write these words down on paper, in this order. Without them nobody gets in, not even you. Never store them on a phone or computer." = "Write these words down on paper, in this order. Without them nobody gets in, not even you. Never store them on a phone or computer.";
+"≈ %d bit · each word 1 of 7776" = "≈ %d bit · each word 1 of 7776";
+"Written down — continue" = "Written down — continue";
+"New words" = "New words";
+"Type the words from your paper to check them, with spaces in between." = "Type the words from your paper to check them, with spaces in between.";
+"Words" = "Words";
+"Hide" = "Hide";
+"Done" = "Done";
+"Show the words again" = "Show the words again";
+"%d of %d words recognised" = "%d of %d words recognised";
+"Doesn't match — check spelling and order" = "Doesn't match — check spelling and order";
+"Encrypting … takes a few seconds" = "Encrypting … takes a few seconds";
+"Enter your words" = "Enter your words";
+"word word word …" = "word word word …";
+"Unlock" = "Unlock";
+"Forgot the words?" = "Forgot the words?";
+"Checking …" = "Checking …";
+"Without your words the key cannot be opened. Resetting deletes your key, all messages and contacts on this device. You start with a new identity." = "Without your words the key cannot be opened. Resetting deletes your key, all messages and contacts on this device. You start with a new identity.";
+"Choose other protection" = "Choose other protection";
+"Wrong words" = "Wrong words";
+"Must not be your real words" = "Must not be your real words";
+"Must not be your panic code" = "Must not be your panic code";
+"Locked with random words (scrypt): strong even if someone copies this device." = "Locked with random words (scrypt): strong even if someone copies this device.";
+"The 6-digit PIN is only as strong as the iOS passcode: whoever can read this device (jailbreak) can try all PINs. Words are safer: Change protection." = "The 6-digit PIN is only as strong as the iOS passcode: whoever can read this device (jailbreak) can try all PINs. Words are safer: Change protection.";
+"Change protection" = "Change protection";
+"Now: words · PIN or new words" = "Now: words · PIN or new words";
+"Now: 6-digit PIN · words are safer" = "Now: 6-digit PIN · words are safer";
+"nsec — words required" = "nsec — words required";
+"Second code that deletes everything" = "Second code that deletes everything";
+"Switching between PIN and words removes your panic code. Set a new one afterwards." = "Switching between PIN and words removes your panic code. Set a new one afterwards.";
+"Now locked with your words." = "Now locked with your words.";
+"Panic code" = "Panic code";
+"Set a new panic code" = "Set a new panic code";
+"Remove panic code" = "Remove panic code";
+"A second code, typed instead of your words, that does not unlock but deletes the app at once and for good, in case you are forced to unlock. At least 4 characters; two short words are harder to guess. It works on this device, offline too." = "A second code, typed instead of your words, that does not unlock but deletes the app at once and for good, in case you are forced to unlock. At least 4 characters; two short words are harder to guess. It works on this device, offline too.";
+"Panic code (4+ characters, two words are better)" = "Panic code (4+ characters, two words are better)";
+"At least 4 characters" = "At least 4 characters";
+"Panic code set" = "Panic code set";
+"New PIN" = "New PIN";
+"Choose the new protection. Then you set the new PIN or get new words. Your chats stay." = "Choose the new protection. Then you set the new PIN or get new words. Your chats stay.";
+"Confirm" = "Confirm";
+"IS ON" = "IS ON";
+"IS OFF" = "IS OFF";
+"SET AGAIN FOR THE NEW IDENTITY" = "SET AGAIN FOR THE NEW IDENTITY";
+"Repeat" = "Repeat";
+"Entries don't match" = "Entries don't match";
+"Panic code removed" = "Panic code removed";
+"Panic PIN removed" = "Panic PIN removed";
+"Set panic code" = "Set panic code";
+"Set panic PIN" = "Set panic PIN";
+"Save new codeword" = "Save new codeword";
+"Turn on" = "Turn on";
+"Turn emergency wipe off" = "Turn emergency wipe off";
+"Enter a codeword" = "Enter a codeword";
+"%d digits, not your real PIN" = "%d digits, not your real PIN";
+"Tor is not running — Mesh stays offline" = "Tor is not running — Mesh stays offline";
+"Over Tor: relays don't see your IP address." = "Over Tor: relays don't see your IP address.";
+"Tor is starting. Until it is ready, Mesh stays offline instead of connecting directly." = "Tor is starting. Until it is ready, Mesh stays offline instead of connecting directly.";
+"Send contact" = "Send contact";
+"Shared contact" = "Shared contact";
+"Open chat" = "Open chat";
+"Connected via Tor" = "Connected via Tor";
+"Add contact?" = "Add contact?";
+"%@\nshared by %@\n%@\n\nOnly add people you know." = "%@\nshared by %@\n%@\n\nOnly add people you know.";
+"Starting Tor … %d%%" = "Starting Tor … %d%%";
+"Only one person per code · tap to enlarge" = "Only one person per code · tap to enlarge";

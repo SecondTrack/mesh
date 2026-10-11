@@ -1,0 +1,4 @@
+#!/bin/sh
+# Beim Entfernen auch den Tor-Zwischenspeicher (Verzeichnis des Netzes, keine Nachrichten).
+[ "$1" = remove ] || [ "$1" = purge ] && rm -rf /var/mobile/Library/Mesh-Tor
+exit 0

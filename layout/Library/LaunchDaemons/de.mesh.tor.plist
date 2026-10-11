@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Tor für Mesh: nur Client, SOCKS auf 127.0.0.1:19050, Steuerung nur als Unix-Socket im Datenordner.
+     Läuft als mobile, damit die App das Cookie lesen kann, und bleibt im Hintergrund wach. -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>de.mesh.tor</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Applications/Mesh.app/mesh-tor</string>
+		<string>--ignore-missing-torrc</string>
+		<string>-f</string>
+		<string>/dev/null</string>
+		<string>--DataDirectory</string>
+		<string>/var/mobile/Library/Mesh-Tor</string>
+		<string>--SocksPort</string>
+		<string>127.0.0.1:19050</string>
+		<string>--ControlPort</string>
+		<string>unix:/var/mobile/Library/Mesh-Tor/control</string>
+		<string>--CookieAuthentication</string>
+		<string>1</string>
+		<string>--ClientOnly</string>
+		<string>1</string>
+		<string>--AvoidDiskWrites</string>
+		<string>1</string>
+		<string>--Log</string>
+		<string>warn stderr</string>
+	</array>
+	<key>UserName</key>
+	<string>mobile</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>/dev/null</string>
+	<key>StandardErrorPath</key>
+	<string>/dev/null</string>
+</dict>
+</plist>

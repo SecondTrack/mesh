@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Mesh</string>
+	<key>CFBundleDisplayName</key>
+	<string>Mesh</string>
+	<key>CFBundleIdentifier</key>
+	<string>de.mesh.ios</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>de</string>
+	</array>
+	<key>CFBundleExecutable</key>
+	<string>Mesh</string>
+	<key>CFBundleVersion</key>
+	<string>0.1.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<!-- App-Icon (Mesh-Logo); flach, ohne iOS-Glanz. -->
+	<key>CFBundleIconFiles</key>
+	<array>
+		<string>Icon.png</string>
+		<string>Icon@2x.png</string>
+	</array>
+	<key>UIPrerenderedIcon</key>
+	<true/>
+	<!-- iPod touch 4: nur Hochformat, ARMv7 (Wert 7 = armv7 erforderlich). -->
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+	</array>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<!-- Dunkle Statusbar zum Mesh-Ground; kein Storyboard (Root von Hand, läuft ab iOS 4). -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleBlackOpaque</string>
+	<!-- Gesperrt im Hintergrund nur auf neue DMs lauschen ("Neue Nachricht", Notlöschung). -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>voip</string>
+	</array>
+	<key>MinimumOSVersion</key>
+	<string>5.0</string>
+</dict>
+</plist>

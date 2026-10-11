@@ -1,0 +1,358 @@
+/* Mesh — Deutsch. Schlüssel = englischer Basistext. */
+
+// Chatliste / Verbindungsstatus
+"Encrypted · Nostr" = "verschlüsselt · Nostr";
+"Search contacts" = "Kontakte suchen";
+"Chats" = "Chats";
+"Me" = "Ich";
+"Connected" = "verbunden";
+"Connecting …" = "verbindet …";
+"You: " = "Du: ";
+
+// Chat
+"Message" = "Nachricht";
+"cancel" = "abbrechen";
+"Microphone unavailable" = "Mikrofon nicht verfügbar";
+"Sending…" = "Senden…";
+"Recording too short" = "Aufnahme zu kurz";
+"Voice effect" = "Stimmeffekt";
+"Voice effect: %@" = "Stimmeffekt: %@";
+"Delete" = "Löschen";
+
+// Ich / Profil-Menü
+"Profile & Settings" = "Profil & Einstellungen";
+"Edit profile" = "Profil bearbeiten";
+"Name, picture, about" = "Name, Bild, Über mich";
+"My Code" = "Mein Code";
+"QR to share & scan" = "QR zum Teilen & Scannen";
+"Security" = "Sicherheit";
+"PIN, keys" = "PIN, Schlüssel";
+"Sound & Microphone" = "Ton & Mikrofon";
+"Gain, voice effect" = "Verstärkung, Stimmeffekt";
+"Your name" = "Dein Name";
+"Add a description" = "Beschreibung hinzufügen";
+
+// Sicherheit
+"End-to-end encrypted" = "Ende-zu-Ende verschlüsselt";
+"Public key" = "Öffentlicher Schlüssel";
+"npub — shareable" = "npub — teilbar";
+"Show secret key" = "Geheimen Schlüssel anzeigen";
+"nsec — PIN required" = "nsec — nur mit PIN";
+"Share your secret key (nsec) with no one. Whoever has it can take over your identity and read along." = "Teile deinen geheimen Schlüssel (nsec) mit niemandem. Wer ihn hat, kann deine Identität übernehmen und mitlesen.";
+"Wrong PIN" = "Falsche PIN";
+"PINs don't match" = "PINs stimmen nicht überein";
+"PIN changed" = "PIN geändert";
+"Failed" = "Fehlgeschlagen";
+"Locked" = "Gesperrt";
+"Secret key" = "Geheimer Schlüssel";
+
+// Allgemeine Buttons
+"Cancel" = "Abbrechen";
+"OK" = "OK";
+"npub copied" = "npub kopiert";
+
+// Sperrbildschirm (PIN-Pad)
+"Repeat PIN" = "PIN wiederholen";
+"Set a PIN" = "PIN festlegen";
+"Enter again to confirm" = "Zur Bestätigung nochmal eingeben";
+"%d digits — protects your key on this device" = "%d Ziffern — schützt deinen Schlüssel auf dem Gerät";
+"Enter PIN" = "PIN eingeben";
+"Setup failed" = "Einrichten fehlgeschlagen";
+
+// Kontakt-Profil
+"Contact" = "Kontakt";
+"SAFETY NUMBER" = "SICHERHEITSNUMMER";
+"Verified" = "Verifiziert";
+"Not verified (TOFU)" = "Nicht verifiziert (TOFU)";
+"Unverify" = "Aufheben";
+"Verify" = "Verifizieren";
+
+// Kontakt hinzufügen
+"Add contact" = "Kontakt hinzufügen";
+"NPUB OR HEX PUBKEY" = "NPUB ODER HEX-PUBKEY";
+"⌗  Scan QR" = "⌗  QR scannen";
+"NAME (OPTIONAL)" = "NAME (OPTIONAL)";
+"Display name" = "Anzeigename";
+"Add" = "Hinzufügen";
+"Invalid" = "Ungültig";
+"Please enter a valid npub or 64-character hex pubkey." = "Bitte einen gültigen npub oder 64-stelligen Hex-Pubkey eingeben.";
+
+// QR-Scanner
+"No camera available" = "Keine Kamera verfügbar";
+"Hold the npub QR in the frame" = "npub-QR in den Rahmen halten";
+"Paste code" = "Code einfügen";
+
+// Profil bearbeiten
+"Save" = "Sichern";
+"NAME" = "NAME";
+"e.g. Anna" = "z.B. Anna";
+"ABOUT" = "ÜBER MICH";
+"Short description" = "Kurzbeschreibung";
+"Camera" = "Kamera";
+"Photo Library" = "Mediathek";
+"Profile picture" = "Profilbild";
+
+// Ton-Einstellungen
+"Audio Lab" = "Audio-Labor";
+"Tune recording quality live" = "Aufnahme-Qualität live einstellen";
+"RECORDING" = "AUFNAHME";
+"Apple Voice Unit" = "Apple Voice-Einheit";
+"Hardware noise reduction + AGC" = "Hardware-Rauschunterdr. + AGC";
+"Distortion" = "Verzerrer";
+"PLAYBACK" = "WIEDERGABE";
+"Playback volume" = "Wiedergabe-Lautstärke";
+"Make voice messages louder" = "Sprachnachrichten lauter";
+"In the Audio Lab you record once and instantly hear the result as you move the sliders — noise filter, high-pass, low-pass, presence, volume. “Set as default” uses the values for all voice messages." = "Im Audio-Labor sprichst du einmal ein und hörst beim Drehen der Regler sofort das Ergebnis — Rauschfilter, Hochpass, Tiefpass, Präsenz, Lautstärke. „Als Standard übernehmen“ wendet die Werte auf alle Sprachnachrichten an.";
+"On" = "An";
+"Off" = "Aus";
+
+// Wiedergabe-Lautstärke-Stufen
+"Normal" = "Normal";
+"Loud" = "Laut";
+"Very loud" = "Sehr laut";
+"Extremely loud" = "Extrem laut";
+
+// Audio-Labor
+"Record" = "Aufnehmen";
+"Say a sentence, then turn the sliders." = "Sprich einen Satz ein, dann an den Reglern drehen.";
+"▶ Original" = "▶ Original";
+"▶ Processed" = "▶ Verarbeitet";
+"Noise reduction" = "Rauschunterdrückung";
+"High-pass (low cut)" = "Hochpass (Tiefen-Cut)";
+"Low-pass (high cut)" = "Tiefpass (Höhen-Cut)";
+"Presence / clarity" = "Präsenz / Klarheit";
+"Volume" = "Lautstärke";
+"Set as default" = "Als Standard übernehmen";
+"Recording ready (%d s) — now test the sliders" = "Aufnahme bereit (%d s) — jetzt Regler testen";
+"Recording empty — try again" = "Aufnahme leer — nochmal";
+"⏹  Stop" = "⏹  Stop";
+"Recording … (max %d s)" = "Aufnahme läuft … (max %d s)";
+"Record first" = "Erst aufnehmen";
+"Applied — now active for all voice messages." = "Übernommen — gilt jetzt für alle Sprachnachrichten.";
+
+// Mein-Code-Seite
+
+// Rauschunterdrückung-Stufen
+"Mild" = "Mild";
+"Strong" = "Stark";
+"Very strong" = "Sehr stark";
+"Medium" = "Mittel";
+
+// Stimmeffekt-Namen
+"High (chipmunk)" = "Hoch (Chipmunk)";
+"Deep" = "Tief";
+"Robot" = "Roboter";
+"Alien" = "Alien";
+"Other voice (same tempo)" = "Andere Stimme (gleiches Tempo)";
+
+// Chat-Vorschau-Platzhalter
+"Photo" = "Bild";
+"Voice message" = "Sprachnachricht";
+"Too many attempts — try again in %d:%02d" = "Zu viele Versuche — wieder möglich in %d:%02d";
+"Key belongs to another device" = "Schlüssel gehört zu einem anderen Gerät";
+"Key bound to this device" = "Schlüssel an dieses Gerät gebunden";
+"Key not bound to device (keychain unavailable)" = "Schlüssel nicht ans Gerät gebunden (Schlüsselbund nicht verfügbar)";
+"Write it down on paper. It can't be copied, so it never lands in the clipboard." = "Schreib ihn auf Papier ab. Kopieren geht absichtlich nicht, damit er nie in der Zwischenablage landet.";
+"Image can't be shown" = "Bild kann nicht angezeigt werden";
+"Image from unknown contact. Tap to show." = "Bild von unbekanntem Kontakt. Tippen zum Anzeigen.";
+"Show" = "Anzeigen";
+"Your secure messenger" = "Dein sicherer Messenger";
+"Connecting via Tor …" = "Verbinde über Tor …";
+"Connecting to the network …" = "Verbinde mit dem Netzwerk …";
+"%d of %d relays" = "%d von %d Relays";
+"Connected to the network" = "Mit dem Netzwerk verbunden";
+"Forgot PIN?" = "PIN vergessen?";
+"Reset Mesh?" = "Mesh zurücksetzen?";
+"Without the PIN your key cannot be opened. Resetting deletes your key, all messages and contacts on this device. You start with a new identity." = "Ohne die PIN lässt sich dein Schlüssel nicht öffnen. Zurücksetzen löscht deinen Schlüssel, alle Nachrichten und Kontakte auf diesem Gerät. Du startest mit einer neuen Identität.";
+"Delete everything?" = "Alles löschen?";
+"This cannot be undone." = "Das lässt sich nicht rückgängig machen.";
+"Continue" = "Weiter";
+"%@ · request" = "%@ · Anfrage";
+"Not anonymous: relays see your IP address and your contact list." = "Nicht anonym: Relays sehen deine IP-Adresse und deine Kontaktliste.";
+"Device clock is wrong: certificates can only be checked partially." = "Geräteuhr falsch: Zertifikate lassen sich nur eingeschränkt prüfen.";
+"Keys stay on this device only, no cloud backup." = "Schlüssel bleiben nur auf diesem Gerät, kein Cloud-Backup.";
+"Show media from this contact?" = "Medien dieses Kontakts anzeigen?";
+"Only accept contacts you know. Images, voice messages and the profile picture from this contact will then be shown." = "Nur bei Kontakten, die du kennst. Bilder, Sprachnachrichten und Profilbild dieses Kontakts werden dann angezeigt.";
+"Keychain not available — try again" = "Schlüsselbund nicht erreichbar — bitte erneut versuchen";
+"Delete chat" = "Chat löschen";
+"Block" = "Blockieren";
+"This QR code doesn't contain a contact key." = "Dieser QR-Code enthält keinen Kontakt-Schlüssel.";
+"Data can't be read — restart the app" = "Daten nicht lesbar – App neu starten";
+
+/* Antworten, Reaktionen, Selbstlöschen */
+"%@ set disappearing messages to %@" = "%@ hat Selbstlöschen auf %@ gestellt";
+"%@ turned disappearing messages off" = "%@ hat Selbstlöschen ausgeschaltet";
+"%d days" = "%d Tage";
+"%d h" = "%d Std.";
+"%d min" = "%d Min.";
+"5 minutes" = "5 Minuten";
+"1 hour" = "1 Stunde";
+"1 day" = "1 Tag";
+"1 week" = "1 Woche";
+"You set disappearing messages to %@" = "Du hast Selbstlöschen auf %@ gestellt";
+"You turned disappearing messages off" = "Du hast Selbstlöschen ausgeschaltet";
+"Disappearing messages: %@" = "Selbstlöschen: %@";
+"Disappearing messages off" = "Selbstlöschen aus";
+"Disappearing messages" = "Selbstlöschende Nachrichten";
+"New messages disappear on both devices" = "Neue Nachrichten verschwinden auf beiden Geräten";
+"The clock starts" = "Die Uhr startet";
+"From seen" = "Ab Gesehen";
+"From sent" = "Ab Gesendet";
+"Clear chat" = "Chat leeren";
+"Clear this chat?" = "Diesen Chat leeren?";
+"Clear for me" = "Für mich leeren";
+"Clear for everyone" = "Für alle leeren";
+"Reply" = "Antworten";
+"Reply to %@" = "Antwort an %@";
+"Copy" = "Kopieren";
+"Delete for me" = "Für mich löschen";
+"Delete for everyone" = "Für alle löschen";
+"Message deleted" = "Nachricht gelöscht";
+"You" = "Du";
+"File" = "Datei";
+"Contact: %@" = "Kontakt: %@";
+
+/* Notlöschung */
+"Panic PIN" = "Panik-PIN";
+"Second PIN that deletes everything" = "Zweite PIN, die alles löscht";
+"Emergency wipe" = "Notlöschung";
+"A codeword by message deletes everything" = "Ein Codewort per Nachricht löscht alles";
+"Set a new panic PIN" = "Neue Panik-PIN festlegen";
+"Remove panic PIN" = "Panik-PIN entfernen";
+"A second PIN that does not unlock but deletes the app at once and for good, in case you are forced to unlock. It works on this device, offline too. It must not be your real PIN." = "Eine zweite PIN, die nicht entsperrt, sondern die App sofort und unwiderruflich löscht – für den Fall, dass man dich zum Entsperren zwingt. Sie wirkt auf diesem Gerät, auch offline. Sie darf nicht deine echte PIN sein.";
+"Panic PIN set" = "Panik-PIN gesetzt";
+"Must not be your real PIN" = "Darf nicht deine echte PIN sein";
+"Codeword" = "Codewort";
+"Emergency wipe off" = "Notlöschung aus";
+"Codeword saved" = "Codewort gespeichert";
+"Send emergency wipe" = "Notlöschung senden";
+"Needs the codeword this contact has set" = "Braucht das Codewort, das dieser Kontakt gesetzt hat";
+"Deletes the device of %@ at once and for good, but only with the codeword %@ has set. Only a hash is sent; the codeword never leaves this device and is not stored." = "Löscht das Gerät von %@ sofort und unwiderruflich – aber nur mit dem Codewort, das %@ gesetzt hat. Gesendet wird nur ein Hash; das Codewort verlässt dieses Gerät nie und wird nicht gespeichert.";
+"Emergency wipe sent" = "Notlöschung gesendet";
+
+/* Dateien, Videos, Kontaktkarten */
+"Audio" = "Audio";
+"No other contacts to share" = "Keine weiteren Kontakte zum Teilen";
+"Photo from library" = "Foto aus der Mediathek";
+"Video" = "Video";
+"Share contact" = "Kontakt teilen";
+"Video too long to send" = "Video zu lang zum Senden";
+
+/* Signal */
+"Messages use Signal (forward secrecy) as soon as a contact's key bundle is known, NIP-44 before that." = "Nachrichten laufen über Signal (Forward Secrecy), sobald das Schlüsselbündel eines Kontakts bekannt ist, vorher über NIP-44.";
+"Encrypted with Signal: each message has its own key (forward secrecy)." = "Verschlüsselt mit Signal: jede Nachricht hat ihren eigenen Schlüssel (Forward Secrecy).";
+"Encrypted with NIP-44. Signal starts as soon as you have exchanged messages." = "Verschlüsselt mit NIP-44. Signal beginnt, sobald ihr Nachrichten ausgetauscht habt.";
+
+/* Live-QR */
+"Copy link" = "Link kopieren";
+"Link copied" = "Link kopiert";
+
+/* Identitäten */
+"Identities" = "Identitäten";
+"Switch or add" = "Wechseln oder neu anlegen";
+"SWITCH OR ADD" = "WECHSELN ODER NEU";
+"Import with nsec" = "Mit nsec übernehmen";
+"Add an existing identity" = "Eine vorhandene Identität hinzufügen";
+"Unified inbox" = "Gemeinsamer Posteingang";
+"Chats of all identities in one list" = "Chats aller Identitäten in einer Liste";
+"New" = "Neu";
+"New identity" = "Neue Identität";
+"A second identity with its own key, contacts and chats. It uses the same PIN and receives in the background." = "Eine weitere Identität mit eigenem Schlüssel, eigenen Kontakten und Chats. Sie nutzt dieselbe PIN und empfängt im Hintergrund mit.";
+"Create" = "Anlegen";
+"The secret key of an existing identity (nsec1…)." = "Der geheime Schlüssel einer vorhandenen Identität (nsec1…).";
+
+/* Mitteilungen */
+"New message" = "Neue Nachricht";
+
+/* Sicherheitsnummer */
+"The safety number with %@ has changed" = "Die Sicherheitsnummer mit %@ hat sich geändert";
+"Safety number changed" = "Sicherheitsnummer geändert";
+"Appears as soon as you have exchanged messages. Only then can you verify." = "Erscheint, sobald ihr Nachrichten ausgetauscht habt. Erst dann lässt sich prüfen.";
+"Set again" = "Neu setzen";
+"This file type is not opened on this device for security reasons." = "Dieser Dateityp wird auf diesem Gerät aus Sicherheitsgründen nicht geöffnet.";
+"Wrong PIN, not a valid nsec, or this identity is already here." = "Falsche PIN, kein gültiger nsec, oder diese Identität ist schon da.";
+"Set the emergency-wipe codeword again so that it also covers the new identity." = "Setz das Codewort der Notlöschung neu, damit es auch die neue Identität abdeckt.";
+"Must not be your panic PIN" = "Darf nicht deine Panik-PIN sein";
+"If a contact sends this codeword, the app is deleted at once and for good: identity, contacts, all messages. Only the hash travels, never the codeword. Give it only to people you trust completely: whoever knows it can wipe you. Once used, choose a new codeword." = "Schickt ein Kontakt dieses Codewort, wird die App sofort und unwiderruflich gelöscht: Identität, Kontakte, alle Nachrichten. Es reist nur ein Hash, nie das Codewort. Gib es nur Menschen, denen du völlig vertraust – wer es kennt, kann dich löschen. Nach einem Einsatz ein neues Codewort wählen.";
+
+// Schutzart: PIN oder Wörter
+"How should Mesh be protected?" = "Wie soll Mesh geschützt sein?";
+"Your key is locked with this. It matters when someone copies the data off this device. You can change it later under Security." = "Damit wird dein Schlüssel verschlossen. Es zählt, wenn jemand die Daten von diesem Gerät kopiert. Du kannst es später unter Sicherheit ändern.";
+"6-digit PIN" = "6-stellige PIN";
+"1 million combinations · cracked in seconds" = "1 Million Kombinationen · in Sekunden geknackt";
+"Quick to type. Safe only as long as nobody copies the device." = "Schnell getippt. Sicher nur, solange niemand das Gerät ausliest.";
+"%d words" = "%d Wörter";
+"RECOMMENDED" = "EMPFOHLEN";
+"≈ %d bit · about 60,000 years*" = "≈ %d Bit · etwa 60 000 Jahre*";
+"The app rolls random words for you to write down. Strong even against a copied device." = "Die App würfelt zufällige Wörter, die du aufschreibst. Stark auch gegen ein ausgelesenes Gerät.";
+"SAFEST" = "AM SICHERSTEN";
+"≈ %d bit · about 500 million years*" = "≈ %d Bit · etwa 500 Mio. Jahre*";
+"One word more makes it 7776 times harder. For high risk." = "Ein Wort mehr macht es 7776-mal schwerer. Für hohes Risiko.";
+"* with 1000 graphics cards, after copying the device. Without a copy the lock slows every guess down and deletes everything after 30 wrong tries." = "* mit 1000 Grafikkarten, nachdem jemand das Gerät ausgelesen hat. Ohne Auslesen bremst die Sperre jeden Versuch und löscht nach 30 Fehlversuchen alles.";
+"Your %d words" = "Deine %d Wörter";
+"Write these words down on paper, in this order. Without them nobody gets in, not even you. Never store them on a phone or computer." = "Schreib diese Wörter in dieser Reihenfolge auf Papier. Ohne sie kommt niemand rein, auch du nicht. Nie auf Handy oder Computer speichern.";
+"≈ %d bit · each word 1 of 7776" = "≈ %d Bit · jedes Wort 1 aus 7776";
+"Written down — continue" = "Aufgeschrieben – weiter";
+"New words" = "Neue Wörter";
+"Type the words from your paper to check them, with spaces in between." = "Tipp die Wörter von deinem Zettel zur Kontrolle ein, mit Leerzeichen dazwischen.";
+"Words" = "Wörter";
+"Hide" = "Verbergen";
+"Done" = "Fertig";
+"Show the words again" = "Wörter noch mal zeigen";
+"%d of %d words recognised" = "%d von %d Wörtern erkannt";
+"Doesn't match — check spelling and order" = "Stimmt nicht – prüf Schreibweise und Reihenfolge";
+"Encrypting … takes a few seconds" = "Verschlüssele … dauert ein paar Sekunden";
+"Enter your words" = "Wörter eingeben";
+"word word word …" = "wort wort wort …";
+"Unlock" = "Entsperren";
+"Forgot the words?" = "Wörter vergessen?";
+"Checking …" = "Prüfe …";
+"Without your words the key cannot be opened. Resetting deletes your key, all messages and contacts on this device. You start with a new identity." = "Ohne deine Wörter lässt sich der Schlüssel nicht öffnen. Zurücksetzen löscht deinen Schlüssel, alle Nachrichten und Kontakte auf diesem Gerät. Du beginnst mit einer neuen Identität.";
+"Choose other protection" = "Andere Schutzart wählen";
+"Wrong words" = "Falsche Wörter";
+"Must not be your real words" = "Darf nicht deine echten Wörter sein";
+"Must not be your panic code" = "Darf nicht dein Panik-Code sein";
+"Locked with random words (scrypt): strong even if someone copies this device." = "Mit zufälligen Wörtern verschlossen (scrypt): stark, auch wenn jemand dieses Gerät ausliest.";
+"The 6-digit PIN is only as strong as the iOS passcode: whoever can read this device (jailbreak) can try all PINs. Words are safer: Change protection." = "Die 6-stellige PIN ist nur so stark wie der Gerätecode von iOS: Wer dieses Gerät auslesen kann (Jailbreak), kann alle PINs durchprobieren. Sicherer sind Wörter: Schutz ändern.";
+"Change protection" = "Schutz ändern";
+"Now: words · PIN or new words" = "Jetzt: Wörter · PIN oder neue Wörter";
+"Now: 6-digit PIN · words are safer" = "Jetzt: 6-stellige PIN · Wörter sind sicherer";
+"nsec — words required" = "nsec – Wörter nötig";
+"Second code that deletes everything" = "Zweiter Code, der alles löscht";
+"Switching between PIN and words removes your panic code. Set a new one afterwards." = "Beim Wechsel zwischen PIN und Wörtern fällt dein Panik-Code weg. Leg danach einen neuen fest.";
+"Now locked with your words." = "Jetzt mit deinen Wörtern verschlossen.";
+"Panic code" = "Panik-Code";
+"Set a new panic code" = "Neuen Panik-Code festlegen";
+"Remove panic code" = "Panik-Code entfernen";
+"A second code, typed instead of your words, that does not unlock but deletes the app at once and for good, in case you are forced to unlock. At least 4 characters; two short words are harder to guess. It works on this device, offline too." = "Ein zweiter Code, statt deiner Wörter eingetippt, der nicht entsperrt, sondern die App sofort und endgültig löscht, falls du zum Entsperren gezwungen wirst. Mindestens 4 Zeichen; zwei kurze Wörter sind schwerer zu erraten. Wirkt auf diesem Gerät, auch offline.";
+"Panic code (4+ characters, two words are better)" = "Panik-Code (ab 4 Zeichen, besser zwei Wörter)";
+"At least 4 characters" = "Mindestens 4 Zeichen";
+"Panic code set" = "Panik-Code festgelegt";
+"New PIN" = "Neue PIN";
+"Choose the new protection. Then you set the new PIN or get new words. Your chats stay." = "Wähl die neue Schutzart. Danach legst du die neue PIN fest oder bekommst neue Wörter. Deine Chats bleiben.";
+"Confirm" = "Bestätigen";
+"IS ON" = "IST AN";
+"IS OFF" = "IST AUS";
+"SET AGAIN FOR THE NEW IDENTITY" = "NEU SETZEN FÜR DIE NEUE IDENTITÄT";
+"Repeat" = "Wiederholen";
+"Entries don't match" = "Eingaben stimmen nicht überein";
+"Panic code removed" = "Panik-Code entfernt";
+"Panic PIN removed" = "Panik-PIN entfernt";
+"Set panic code" = "Panik-Code festlegen";
+"Set panic PIN" = "Panik-PIN festlegen";
+"Save new codeword" = "Neues Codewort speichern";
+"Turn on" = "Einschalten";
+"Turn emergency wipe off" = "Notlöschung ausschalten";
+"Enter a codeword" = "Codewort eingeben";
+"%d digits, not your real PIN" = "%d Ziffern, nicht deine echte PIN";
+"Tor is not running — Mesh stays offline" = "Tor läuft nicht – Mesh bleibt offline";
+"Over Tor: relays don't see your IP address." = "Über Tor: Relays sehen deine IP-Adresse nicht.";
+"Tor is starting. Until it is ready, Mesh stays offline instead of connecting directly." = "Tor startet noch. Bis es bereit ist, bleibt Mesh offline, statt direkt zu verbinden.";
+"Send contact" = "Kontakt senden";
+"Shared contact" = "Geteilter Kontakt";
+"Open chat" = "Chat öffnen";
+"Connected via Tor" = "Verbunden über Tor";
+"Add contact?" = "Kontakt hinzufügen?";
+"%@\nshared by %@\n%@\n\nOnly add people you know." = "%@\ngeteilt von %@\n%@\n\nFüge nur Menschen hinzu, die du kennst.";
+"Starting Tor … %d%%" = "Starte Tor … %d %%";
+"Only one person per code · tap to enlarge" = "Nur eine Person pro Code · antippen zum Vergrößern";

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Tor-Dienst für Mesh: Datenordner nur für mobile (ein Symlink an dieser Stelle wird entfernt, sonst
+# gäbe chown einer fremden Datei den Besitzer mobile), Dienst (neu) laden.
+D=/var/mobile/Library/Mesh-Tor
+[ -L "$D" ] && rm -f "$D"
+mkdir -p "$D"
+chown -h mobile:mobile "$D"
+chmod 700 "$D"
+# Ein laufendes Tor bleibt: ein Neustart liest das Netzverzeichnis neu ein (am iPod 1–2 Minuten).
+# Nur wenn sich seine Startargumente ändern, hier einmal "killall mesh-tor" einfügen.
+if [ -f /Library/LaunchDaemons/de.mesh.tor.plist ]; then
+  launchctl unload /Library/LaunchDaemons/de.mesh.tor.plist 2>/dev/null
+  launchctl load /Library/LaunchDaemons/de.mesh.tor.plist
+fi
+exit 0

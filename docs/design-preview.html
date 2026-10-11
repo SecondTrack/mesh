@@ -1,0 +1,368 @@
+<title>Mesh iOS-6 Vorschau</title>
+<style>
+  :root{
+    --bg:#0A0F0E; --surface:#111A17; --surfaceHi:#18231F; --field:#16211D; --line:#213029;
+    --accent:#2FE6A8; --accentDim:#1C8F6B; --accentDeep:#0F3A2E; --ink:#E8F0ED;
+    --muted:#8A9A94; --faint:#5A6B65; --bubbleMeInk:#E6FBF2; --danger:#FF6B6B;
+    /* Seiten-Chrome (hell) */
+    --page:#eef1f0; --pageInk:#1b2420; --pageMuted:#5c6b64; --pageCard:#ffffff; --pageLine:#dfe4e2;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --page:#0d1211; --pageInk:#e7efeb; --pageMuted:#93a29b; --pageCard:#141a18; --pageLine:#232c28;
+  }}
+  :root[data-theme="dark"]{
+    --page:#0d1211; --pageInk:#e7efeb; --pageMuted:#93a29b; --pageCard:#141a18; --pageLine:#232c28;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--page); color:var(--pageInk);
+    font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif; padding:28px 16px 48px}
+  .wrap{max-width:1180px; margin:0 auto}
+  header.top{margin-bottom:24px}
+  header.top h1{margin:0 0 6px; font-size:24px; letter-spacing:-.02em}
+  header.top p{margin:0; color:var(--pageMuted); font-size:14px; max-width:60ch; line-height:1.5}
+  .badge{display:inline-block; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--accentDim); border:1px solid var(--accentDim); border-radius:999px; padding:3px 9px; margin-bottom:14px}
+  .rack{display:flex; flex-wrap:wrap; gap:26px 30px; align-items:flex-start}
+  .device{display:flex; flex-direction:column; gap:10px}
+  .device > .cap{font-size:12px; color:var(--pageMuted); text-align:center; letter-spacing:.02em}
+  /* iPod-4-Screen 320x480 mit dünnem Rahmen */
+  .screen{width:320px; height:480px; background:var(--bg); border-radius:6px; overflow:hidden; position:relative;
+    box-shadow:0 10px 30px rgba(0,0,0,.28), 0 0 0 8px #0a0d0c, 0 0 0 9px #26302c; color:var(--ink)}
+  .statusbar{height:20px; background:#000; display:flex; align-items:center; justify-content:space-between;
+    padding:0 8px; font-size:11px; color:#cfe;}
+  .statusbar .r{display:flex; gap:5px; align-items:center; opacity:.85}
+  .pad{padding:0 16px}
+  /* generische Bausteine */
+  .brand{font-size:26px; font-weight:700; letter-spacing:-.02em; color:var(--ink)}
+  .sub{font-size:14px; color:var(--muted)}
+  .pill{position:absolute; right:16px; display:flex; align-items:center; gap:8px; height:30px; padding:0 12px;
+    background:var(--surface); border:1px solid var(--accentDim); border-radius:15px; font-size:11px; color:var(--accent)}
+  .dot{width:6px;height:6px;border-radius:3px;background:var(--accent)}
+  .searchbar{height:42px; background:var(--field); border-radius:21px; display:flex; align-items:center;
+    padding:0 18px; color:var(--faint); font-size:15px}
+  .row{display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:.5px solid var(--line)}
+  .avatar{width:46px;height:46px;border-radius:23px;flex:none;display:flex;align-items:center;justify-content:center;
+    color:var(--bg); font-weight:600; font-size:16px}
+  /* Identicon (5x5, wie MeshIdenticon.m) */
+  .ident{width:46px;height:46px;border-radius:23px;flex:none;overflow:hidden;
+    display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(5,1fr);background:#17211d}
+  .ident i{display:block}
+  .tick{font-size:11px;margin:2px 4px 0 0;text-align:right}
+  .tick.sent{color:var(--faint)} .tick.deliv{color:var(--accent)}
+  .vbadge{margin-left:auto; font-size:11px; font-weight:600; letter-spacing:.05em; padding:5px 10px; border-radius:13px}
+  .vbadge.tofu{color:var(--muted); background:var(--surfaceHi); border:1px solid var(--line)}
+  .vbadge.ok{color:var(--bg); background:var(--accent)}
+  .meta{flex:1; min-width:0}
+  .name{font-size:16px; font-weight:600; color:var(--ink)}
+  .prev{font-size:14px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .time{font-size:11px; color:var(--faint); align-self:flex-start; margin-top:3px}
+  .fab{position:absolute; right:16px; width:58px;height:58px;border-radius:29px;background:var(--accent);
+    color:var(--bg); font-size:30px; font-weight:700; display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 16px rgba(47,230,168,.3)}
+  .tabbar{position:absolute; left:0; right:0; bottom:0; height:60px; background:var(--surface);
+    border-top:.5px solid var(--line); display:flex}
+  .tabbar div{flex:1; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:600}
+  .tabbar .a{color:var(--accent)} .tabbar .m{color:var(--muted)}
+  /* Chat */
+  .chead{height:52px; background:var(--surface); border-bottom:.5px solid var(--line);
+    display:flex; align-items:center; gap:8px; padding:0 10px}
+  .back{color:var(--accent); font-size:30px; width:40px}
+  .ctitle{font-size:20px; font-weight:700; color:var(--ink)}
+  .bubbles{padding:12px; display:flex; flex-direction:column; gap:8px}
+  .b{max-width:74%; padding:8px 12px; border-radius:16px; font-size:15px; line-height:1.3}
+  .b.them{align-self:flex-start; background:var(--surfaceHi); color:var(--ink)}
+  .b.me{align-self:flex-end; background:var(--accentDeep); color:var(--bubbleMeInk)}
+  .inbar{position:absolute; left:0; right:0; bottom:0; height:54px; background:var(--surface);
+    border-top:.5px solid var(--line); display:flex; align-items:center; gap:10px; padding:0 12px}
+  .infield{flex:1; height:36px; background:var(--field); border-radius:18px; display:flex; align-items:center;
+    padding:0 14px; color:var(--faint); font-size:15px}
+  .send{width:48px;height:36px;border-radius:18px;background:var(--accent); color:var(--bg);
+    display:flex;align-items:center;justify-content:center; font-size:22px; font-weight:700}
+  /* Formfelder / Ich */
+  .lbl{font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 2px 8px}
+  .inp{height:46px; background:var(--field); border-radius:12px; display:flex; align-items:center; padding:0 12px;
+    color:var(--faint); font-size:15px; margin-bottom:20px}
+  .inp.mono{font-family:Menlo,Consolas,monospace; font-size:12px}
+  .cta{height:50px; background:var(--accent); color:var(--bg); border-radius:14px; display:flex;
+    align-items:center; justify-content:center; font-size:16px; font-weight:600}
+  .keycard{background:var(--surfaceHi); border:1px solid var(--line); border-radius:14px; padding:14px;
+    font-family:Menlo,Consolas,monospace; font-size:12px; color:var(--accent); word-break:break-all; line-height:1.5; margin-bottom:20px}
+  .hint{font-size:14px; color:var(--muted); line-height:1.5; margin-top:20px}
+  .note{margin-top:28px; font-size:13px; color:var(--pageMuted); max-width:70ch; line-height:1.6;
+    border-top:1px solid var(--pageLine); padding-top:16px}
+  /* ---- Android-getreue Chatliste ---- */
+  .topbar{display:flex;align-items:center;gap:10px;padding:14px 12px 14px 14px}
+  .topbar .ttl{flex:1;min-width:0}
+  .topbar .ttl .t{font-size:26px;font-weight:700;color:var(--ink);letter-spacing:-.02em;line-height:1.05}
+  .topbar .ttl .s{font-size:11px;color:var(--muted);margin-top:1px}
+  .torchip{display:flex;align-items:center;gap:5px;padding:6px 10px;border-radius:999px;
+    background:var(--accentDeep);border:1px solid var(--line)}
+  .torchip .lbl{font-size:11px;color:var(--accent)}
+  .searchwrap{padding:8px 12px}
+  .searchrow{display:flex;align-items:center;gap:10px;background:var(--field);border:1px solid var(--line);
+    border-radius:999px;padding:10px 14px}
+  .searchrow .ph{color:var(--faint);font-size:15px}
+  .row52{display:flex;align-items:center;gap:12px;padding:9px 14px}
+  .row52 .ident{width:52px;height:52px;border-radius:26px}
+  .row52 .meta{flex:1;min-width:0}
+  .row52 .nm{font-size:16px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .row52 .pv{font-size:14px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row52 .tm{font-size:11px;color:var(--faint);align-self:flex-start;margin-top:2px}
+  .divider78{height:.5px;background:var(--line);margin-left:78px}
+  .bottombar{border-top:.5px solid var(--line);background:var(--surface);padding:10px 12px;display:flex;gap:12px;
+    position:absolute;left:0;right:0;bottom:0}
+  .tabpill{flex:1;display:flex;align-items:center;justify-content:center;gap:9px;padding:13px 0;border-radius:999px}
+  .tabpill.on{background:rgba(47,230,168,.16)} .tabpill.off{background:var(--surfaceHi)}
+  .tabpill .lb{font-size:15px;font-weight:600}
+  .tabpill.on .lb{color:var(--accent)} .tabpill.off .lb{color:var(--muted)}
+  .tabpill .av{width:26px;height:26px;border-radius:13px}
+  svg.ic{display:block}
+  /* ---- Ich (Profil + Menü) ---- */
+  .meavatar{width:112px;height:112px;margin:20px auto 0;position:relative}
+  .meavatar .ident{width:112px;height:112px;border-radius:56px}
+  .cambadge{position:absolute;right:-2px;bottom:-2px;width:38px;height:38px;border-radius:19px;background:var(--bg);display:flex;align-items:center;justify-content:center}
+  .cambadge .inner{width:32px;height:32px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center}
+  .mename{text-align:center;font-size:20px;font-weight:700;color:var(--ink);margin-top:12px}
+  .meabout{text-align:center;font-size:14px;color:var(--faint);margin-top:4px}
+  .setrow{display:flex;align-items:center;gap:14px;padding:13px 16px}
+  .setrow .ibox{width:38px;height:38px;border-radius:10px;background:var(--surfaceHi);display:flex;align-items:center;justify-content:center;flex:none}
+  .setrow .txt{flex:1;min-width:0}
+  .setrow .rt{font-size:15px;color:var(--ink)}
+  .setrow .rs{font-size:11px;color:var(--muted);margin-top:1px}
+  .setdiv{height:.5px;background:var(--line);margin-left:68px}
+  /* ---- Mein Code ---- */
+  .codeav{width:76px;height:76px;margin:14px auto 0;position:relative}
+  .codeav .ident{width:76px;height:76px;border-radius:38px}
+  .keybadge{position:absolute;right:-2px;bottom:-2px;width:28px;height:28px;border-radius:14px;background:var(--bg);display:flex;align-items:center;justify-content:center}
+  .keybadge .inner{width:22px;height:22px;border-radius:11px;background:var(--accent);display:flex;align-items:center;justify-content:center}
+  .qrcard{background:var(--bubbleMeInk);border:4px solid rgba(47,230,168,.9);border-radius:28px;padding:16px;margin:18px auto 0;width:232px}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="badge">Visuelle Vorschau · nicht das laufende Binary</div>
+    <h1>Mesh für iOS 6 — Screen-Vorschau</h1>
+    <p>Gerendert aus denselben Farben, Schriftgrößen und Layout-Maßen wie im Objective-C-Code (iPod touch 4, 320×480). So sieht die App auf dem Gerät aus — der echte Test läuft dann auf dem gejailbreakten iPod.</p>
+  </header>
+
+  <div class="rack">
+
+    <!-- LOCK -->
+    <div class="device">
+      <div class="cap">Sperre</div>
+      <div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="r">◧ ▮▮▮ 100%</span></div>
+        <div style="text-align:center;margin-top:78px">
+          <div class="brand" style="font-size:30px">Mesh</div>
+          <div class="sub" style="margin-top:8px">Code eingeben</div>
+        </div>
+        <div style="margin:36px 30px 0;height:50px;background:var(--field);border-radius:12px;
+          display:flex;align-items:center;justify-content:center;letter-spacing:8px;color:var(--ink);font-size:22px">••••••</div>
+        <div style="margin:14px 30px 0;height:50px;background:var(--accent);border-radius:14px;
+          display:flex;align-items:center;justify-content:center;color:var(--bg);font-size:16px;font-weight:600">Entsperren</div>
+        <div style="text-align:center;margin-top:22px;color:var(--faint);font-size:12px;padding:0 24px">
+          Schlüssel liegt PBKDF2+AES-verschlüsselt · gesperrt im Hintergrund</div>
+      </div>
+    </div>
+
+    <!-- CHATS -->
+    <div class="device">
+      <div class="cap">Chats</div>
+      <div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="r">◧ ▮▮▮ 100%</span></div>
+
+        <div class="topbar">
+          <svg viewBox="0 0 108 108" width="38" height="38" style="flex:none">
+            <path d="M54,54 L79,54 M54,54 L66.5,32.4 M54,54 L41.5,32.4 M54,54 L29,54 M54,54 L41.5,75.6 M54,54 L66.5,75.6" stroke="#2FE6A8" stroke-width="2.4" stroke-opacity="0.55" fill="none" stroke-linecap="round"/>
+            <path d="M79,54 L66.5,32.4 L41.5,32.4 L29,54 L41.5,75.6 L66.5,75.6 Z" stroke="#2FE6A8" stroke-width="2" stroke-opacity="0.32" fill="none"/>
+            <circle cx="79" cy="54" r="5" fill="#2FE6A8"/><circle cx="66.5" cy="32.4" r="5" fill="#2FE6A8"/>
+            <circle cx="41.5" cy="32.4" r="5" fill="#2FE6A8"/><circle cx="29" cy="54" r="5" fill="#2FE6A8"/>
+            <circle cx="41.5" cy="75.6" r="5" fill="#2FE6A8"/><circle cx="66.5" cy="75.6" r="5" fill="#2FE6A8"/>
+            <circle cx="54" cy="54" r="8" fill="#5CFFC6"/><circle cx="54" cy="54" r="3" fill="#0A0F0E"/>
+          </svg>
+          <div class="ttl"><div class="t">Mesh</div><div class="s">verschlüsselt · Nostr</div></div>
+          <div class="torchip">
+            <svg class="ic" viewBox="0 0 24 24" width="15" height="15"><path d="M12,3l7,3v5c0,4.5 -3,7.5 -7,9c-4,-1.5 -7,-4.5 -7,-9v-5z M9,12l2,2l4,-4" fill="none" stroke="#2FE6A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="lbl">verbunden</span>
+          </div>
+        </div>
+
+        <div class="searchwrap"><div class="searchrow">
+          <svg class="ic" viewBox="0 0 24 24" width="18" height="18"><path d="M11,4a7,7 0 1 0 0.01,0 M16.2,16.2l4.3,4.3" fill="none" stroke="#8A9A94" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="ph">Kontakte suchen</span>
+        </div></div>
+
+        <div class="row52"><div class="ident" data-seed="npub1anna7f3z9k2m"></div>
+          <div class="meta"><div class="nm">Anna</div><div class="pv">Geht durch?</div></div><div class="tm">27.09.</div></div>
+        <div class="divider78"></div>
+        <div class="row52"><div class="ident" data-seed="npub1transp0rt3rx"></div>
+          <div class="meta"><div class="nm">transporter <span style="color:var(--accent);font-weight:400">✓ verifiziert</span></div><div class="pv">Du: bin in 5 da</div></div><div class="tm">09:27</div></div>
+        <div class="divider78"></div>
+        <div class="row52"><div class="ident" data-seed="npub1f86fz8f7qa2"></div>
+          <div class="meta"><div class="nm">f86fz8f7</div><div class="pv">jo passt 👍</div></div><div class="tm">04:02</div></div>
+        <div class="divider78"></div>
+
+        <div class="fab" style="bottom:80px;font-size:0">
+          <svg class="ic" viewBox="0 0 24 24" width="26" height="26"><path d="M4,8V6a2,2 0 0 1 2,-2h2 M16,4h2a2,2 0 0 1 2,2v2 M20,16v2a2,2 0 0 1 -2,2h-2 M8,20h-2a2,2 0 0 1 -2,-2v-2 M4,12h16" fill="none" stroke="#0A0F0E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+
+        <div class="bottombar">
+          <div class="tabpill on">
+            <svg class="ic" viewBox="0 0 24 24" width="23" height="23"><path d="M4,5h16a2,2 0 0 1 2,2v8a2,2 0 0 1 -2,2h-9l-5,4v-4h-2a2,2 0 0 1 -2,-2v-8a2,2 0 0 1 2,-2z" fill="none" stroke="#2FE6A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="lb">Chats</span>
+          </div>
+          <div class="tabpill off">
+            <div class="ident av" data-seed="npub1me0wnid3ntity"></div>
+            <span class="lb">Ich</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="device">
+      <div class="cap">Chat</div>
+      <div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="r">◧ ▮▮▮ 100%</span></div>
+        <div class="chead"><div class="back">‹</div><div class="ctitle">transporter</div><div class="vbadge ok">✓ VERIFIZIERT</div></div>
+        <div class="bubbles">
+          <div class="b them">Bist du unterwegs?</div>
+          <div class="b me">Ja, bin in 5 da</div>
+          <div class="tick deliv" style="align-self:flex-end">✓✓</div>
+          <div class="b them">Top, warte unten</div>
+          <div class="b me">👍</div>
+          <div class="tick deliv" style="align-self:flex-end">✓✓</div>
+          <div class="b them">Alles verschlüsselt hier, oder?</div>
+          <div class="b me">Jep — NIP-04, Ende zu Ende</div>
+          <div class="tick deliv" style="align-self:flex-end">✓✓</div>
+          <div class="b me" style="padding:3px;align-self:flex-end">
+            <div style="width:150px;height:104px;border-radius:13px;
+              background:linear-gradient(135deg,#2FE6A8 0%,#1C8F6B 45%,#0F3A2E 100%)"></div>
+          </div>
+          <div class="tick sent" style="align-self:flex-end">✓</div>
+        </div>
+        <div class="inbar">
+          <div style="width:36px;text-align:center;font-size:22px">📷</div>
+          <div class="infield" style="flex:1">Nachricht</div>
+          <div class="send">→</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KONTAKT -->
+    <div class="device">
+      <div class="cap">Kontakt hinzufügen</div>
+      <div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="r">◧ ▮▮▮ 100%</span></div>
+        <div class="chead"><div class="back">‹</div><div class="ctitle">Kontakt hinzufügen</div></div>
+        <div class="pad" style="padding-top:24px">
+          <div class="lbl">npub oder hex-pubkey</div>
+          <div class="inp mono">npub1… / hex</div>
+          <div class="lbl">Name (optional)</div>
+          <div class="inp">Anzeigename</div>
+          <div class="cta">Hinzufügen</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ICH (Profil + Menü) -->
+    <div class="device">
+      <div class="cap">Ich</div>
+      <div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="r">◧ ▮▮▮ 100%</span></div>
+        <div class="topbar">
+          <svg viewBox="0 0 108 108" width="38" height="38" style="flex:none">
+            <path d="M54,54 L79,54 M54,54 L66.5,32.4 M54,54 L41.5,32.4 M54,54 L29,54 M54,54 L41.5,75.6 M54,54 L66.5,75.6" stroke="#2FE6A8" stroke-width="2.4" stroke-opacity="0.55" fill="none" stroke-linecap="round"/>
+            <path d="M79,54 L66.5,32.4 L41.5,32.4 L29,54 L41.5,75.6 L66.5,75.6 Z" stroke="#2FE6A8" stroke-width="2" stroke-opacity="0.32" fill="none"/>
+            <circle cx="79" cy="54" r="5" fill="#2FE6A8"/><circle cx="66.5" cy="32.4" r="5" fill="#2FE6A8"/><circle cx="41.5" cy="32.4" r="5" fill="#2FE6A8"/><circle cx="29" cy="54" r="5" fill="#2FE6A8"/><circle cx="41.5" cy="75.6" r="5" fill="#2FE6A8"/><circle cx="66.5" cy="75.6" r="5" fill="#2FE6A8"/><circle cx="54" cy="54" r="8" fill="#5CFFC6"/><circle cx="54" cy="54" r="3" fill="#0A0F0E"/>
+          </svg>
+          <div class="ttl"><div class="t">Ich</div><div class="s">Profil &amp; Einstellungen</div></div>
+          <div class="torchip"><svg class="ic" viewBox="0 0 24 24" width="15" height="15"><path d="M12,3l7,3v5c0,4.5 -3,7.5 -7,9c-4,-1.5 -7,-4.5 -7,-9v-5z M9,12l2,2l4,-4" fill="none" stroke="#2FE6A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">verbunden</span></div>
+        </div>
+        <div class="meavatar">
+          <div class="ident" data-seed="npub1me0wnid3ntity"></div>
+          <div class="cambadge"><div class="inner"><svg viewBox="0 0 24 24" width="19" height="19"><path d="M5,7h3l1.3,-2h5.4l1.3,2h3a2,2 0 0 1 2,2v8a2,2 0 0 1 -2,2h-14a2,2 0 0 1 -2,-2v-8a2,2 0 0 1 2,-2z M12,10a3,3 0 1 0 0.01,0" fill="none" stroke="#0A0F0E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+        </div>
+        <div class="mename">Dein Name</div>
+        <div class="meabout">Beschreibung hinzufügen</div>
+        <div style="height:12px"></div>
+        <div class="setrow"><div class="ibox"><svg class="ic" viewBox="0 0 24 24" width="20" height="20"><path d="M5,7h3l1.3,-2h5.4l1.3,2h3a2,2 0 0 1 2,2v8a2,2 0 0 1 -2,2h-14a2,2 0 0 1 -2,-2v-8a2,2 0 0 1 2,-2z M12,10a3,3 0 1 0 0.01,0" fill="none" stroke="#2FE6A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="txt"><div class="rt">Profil bearbeiten</div><div class="rs">Name, Bild, Über mich</div></div><svg class="ic" viewBox="0 0 24 24" width="20" height="20"><path d="M9,4l8,8l-8,8" fill="none" stroke="#5A6B65" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="setdiv"></div>
+        <div class="setrow"><div class="ibox"><svg class="ic" viewBox="0 0 24 24" width="20" height="20"><path d="M4,8V6a2,2 0 0 1 2,-2h2 M16,4h2a2,2 0 0 1 2,2v2 M20,16v2a2,2 0 0 1 -2,2h-2 M8,20h-2a2,2 0 0 1 -2,-2v-2 M4,12h16" fill="none" stroke="#2FE6A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="txt"><div class="rt">Mein Code</div><div class="rs">QR zum Teilen &amp; Scannen</div></div><svg class="ic" viewBox="0 0 24 24" width="20" height="20"><path d="M9,4l8,8l-8,8" fill="none" stroke="#5A6B65" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="setdiv"></div>
+        <div class="setrow"><div class="ibox"><svg class="ic" viewBox="0 0 24 24" width="20" height="20"><path d="M12,3l7,3v5c0,4.5 -3,7.5 -7,9c-4,-1.5 -7,-4.5 -7,-9v-5z M9,12l2,2l4,-4" fill="none" stroke="#2FE6A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="txt"><div class="rt">Sicherheit</div><div class="rs">PIN, Schlüssel</div></div><svg class="ic" viewBox="0 0 24 24" width="20" height="20"><path d="M9,4l8,8l-8,8" fill="none" stroke="#5A6B65" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="setdiv"></div>
+        <div class="setrow"><div class="ibox"><svg class="ic" viewBox="0 0 24 24" width="20" height="20"><path d="M16,20v-2a4,4 0 0 0 -4,-4h-4a4,4 0 0 0 -4,4v2 M10,10a3,3 0 1 0 0.01,0 M22,20v-2a4,4 0 0 0 -3,-3.87 M16,4.13a4,4 0 0 1 0,7.75" fill="none" stroke="#2FE6A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="txt"><div class="rt">Identitäten</div><div class="rs">Wechseln oder neue anlegen</div></div><svg class="ic" viewBox="0 0 24 24" width="20" height="20"><path d="M9,4l8,8l-8,8" fill="none" stroke="#5A6B65" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="bottombar">
+          <div class="tabpill off"><svg class="ic" viewBox="0 0 24 24" width="23" height="23"><path d="M4,5h16a2,2 0 0 1 2,2v8a2,2 0 0 1 -2,2h-9l-5,4v-4h-2a2,2 0 0 1 -2,-2v-8a2,2 0 0 1 2,-2z" fill="none" stroke="#8A9A94" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lb">Chats</span></div>
+          <div class="tabpill on"><div class="ident av" data-seed="npub1me0wnid3ntity"></div><span class="lb">Ich</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MEIN CODE -->
+    <div class="device">
+      <div class="cap">Mein Code</div>
+      <div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="r">◧ ▮▮▮ 100%</span></div>
+        <div class="chead">
+          <svg class="ic" viewBox="0 0 24 24" width="24" height="24" style="margin-left:6px"><path d="M15,4l-8,8l8,8" fill="none" stroke="#E8F0ED" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="ctitle" style="font-size:22px">Mein Code</div>
+        </div>
+        <div class="codeav">
+          <div class="ident" data-seed="npub1me0wnid3ntity"></div>
+          <div class="keybadge"><div class="inner"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M20.5,3.5l-8,8 M18.3,5.7l1.6,1.6 M15.3,8.7l1.6,1.6 M8.6,12.4a3.4,3.4 0 1 0 0.01,0" fill="none" stroke="#0A0F0E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+        </div>
+        <div class="qrcard"><canvas id="qrCode" width="200" height="200" style="display:block"></canvas></div>
+        <div class="cta" style="margin:18px 28px 0">npub kopieren</div>
+      </div>
+    </div>
+
+    <!-- QR-SCANNER -->
+    <div class="device">
+      <div class="cap">QR-Scanner</div>
+      <div class="screen" style="background:radial-gradient(circle at 50% 42%, #123 0%, #05100d 70%)">
+        <div class="statusbar"><span>9:41</span><span class="r">◧ ▮▮▮ 100%</span></div>
+        <div style="text-align:center;color:var(--ink);font-size:15px;margin-top:60px">npub-QR in den Rahmen halten</div>
+        <div style="position:absolute;left:60px;top:140px;width:200px;height:200px;border:3px solid var(--accent);border-radius:12px"></div>
+        <div style="position:absolute;left:20px;right:20px;bottom:20px;height:46px;background:var(--surface);
+          border:1px solid var(--line);border-radius:14px;display:flex;align-items:center;justify-content:center;
+          color:var(--ink);font-size:16px;font-weight:600">Abbrechen</div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note">Hinweis: Dies ist eine <strong>1:1-Designvorschau</strong>, kein Emulator — das ARMv7-Binary läuft nur auf dem iPod. Farben (#0A0F0E Grund, #2FE6A8 Mint …), Schriftgrößen und Abstände stammen direkt aus <code>MeshTheme</code> und den View-Controllern. Die Avatare sind echte <strong>Identicons</strong> nach demselben Algorithmus wie <code>MeshIdenticon.m</code> (FNV-Hash → 5×5 symmetrisch). Beispieldaten sind erfunden; frisch installiert startet die App mit leerer Chatliste und deiner neu erzeugten Identität.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script>
+  // npub als echten QR rendern (wie MeshQR.m: dunkle Module auf hellem Grund).
+  try {
+    new QRious({
+      element: document.getElementById('qrCode'),
+      value: 'npub180cvv07tjdrrgpa0j7j7tmnyl2yr6yr7l8j4s3evf6u64th6gkwsyjh6w6',
+      size: 200, level: 'M', foreground: '#0A0F0E', background: '#E6FBF2'
+    });
+  } catch(e) {}
+
+  // Identicon 1:1 wie MeshIdenticon.m (FNV-1a 64-bit → Farbe + 5x5 symmetrisch)
+  function fnv(s){
+    let h = 1469598103934665603n;
+    for (const b of new TextEncoder().encode(s)) { h ^= BigInt(b); h = (h * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn; }
+    return h;
+  }
+  document.querySelectorAll('.ident').forEach(function(el){
+    const h = fnv(el.dataset.seed || '');
+    const t = Number((h >> 40n) & 0xFFn) / 255;
+    const fg = 'rgb(' + Math.round((0.12+0.16*t)*255) + ',' + Math.round((0.55+0.30*t)*255) + ',' + Math.round((0.48+0.22*t)*255) + ')';
+    for (let row=0; row<5; row++) for (let col=0; col<5; col++){
+      const c = col < 3 ? col : 4 - col;
+      const on = Number((h >> BigInt(c*5+row)) & 1n);
+      const i = document.createElement('i');
+      i.style.background = on ? fg : 'transparent';
+      el.appendChild(i);
+    }
+  });
+</script>
