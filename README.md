@@ -17,6 +17,16 @@ Mesh is a Nostr messenger for jailbroken iPods and iPhones on iOS 4.2 to 6.1.
 - Messages, names and pictures are stored encrypted. Keys are wiped from memory when the app locks.
 - Lockout after wrong attempts, plus an emergency wipe code.
 
+## Old iOS, known bugs
+
+iOS 6 no longer gets security updates and has known holes, so Mesh routes around the system instead of trusting it:
+
+- **Images:** JPEG and PNG only. Header and size are checked in Mesh's own code before the system decoder sees them (no TIFF, the classic exploit vector).
+- **PDF, Office, HTML:** never opened, so QuickLook and the old WebKit stay out of the picture.
+- **TLS:** bundled mbedTLS instead of iOS 6's SecureTransport.
+- **Strangers:** media from contacts you haven't accepted is not rendered at all.
+- **Remaining surface:** MP4 videos play in the system player (accepted contacts only), and the iOS kernel itself.
+
 ## Good to know
 
 - Your profile name and picture are public on the relays. Leave them empty if you want to stay anonymous.
