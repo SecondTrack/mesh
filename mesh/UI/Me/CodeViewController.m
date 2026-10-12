@@ -30,7 +30,9 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     BOOL _single;                // ein voller Code (für Android) statt zwei Teilen (iPod ↔ iPod)
     NSInteger _part;             // gezeigter Teil (0 … MESH_SPLIT_PARTS-1) im geteilten Modus
     UILabel *_partBadge, *_hint;
-    BOOL _frozen;                // nach dem ersten Antippen bleibt der Code stehen (Teile passen in jeder Reihenfolge)
+    BOOL _frozen;
+    UIImageView *_fullQR;        // Vollbild: Code (geteilt: aktueller Teil)
+    UILabel *_fullLbl;           // Vollbild: "Teil 1 von 3"                // nach dem ersten Antippen bleibt der Code stehen (Teile passen in jeder Reihenfolge)
 }
 
 - (void)loadView {
@@ -115,11 +117,21 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     _full = [[UIView alloc] initWithFrame:root.bounds];
     _full.backgroundColor = [UIColor whiteColor];
     CGFloat side = root.bounds.size.width - 8;
-    UIImageView *qr = [[UIImageView alloc] initWithFrame:CGRectMake(4, (root.bounds.size.height - side) / 2, side, side)];
-    qr.image = [MeshQR imageForString:_code sizePx:side module:[UIColor blackColor] background:[UIColor whiteColor]];
-    [_full addSubview:qr];
-    [_full addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(hideFull)]];
+    _fullQR = [[UIImageView alloc] initWithFrame:CGRectMake(4, (root.bounds.size.height - side) / 2, side, side)];
+    [_full addSubview:_fullQR];
+    _fullLbl = [[UILabel alloc] initWithFrame:CGRectMake(10, CGRectGetMaxY(_fullQR.frame) + 14, root.bounds.size.width - 20, 24)];
+    _fullLbl.textAlignment = NSTextAlignmentCenter; _fullLbl.backgroundColor = [UIColor clearColor];
+    _fullLbl.font = [UIFont boldSystemFontOfSize:17]; _fullLbl.textColor = [UIColor blackColor];
+    [_full addSubview:_fullLbl];
+    UIButton *x = [UIButton buttonWithType:UIButtonTypeCustom];
+    x.frame = CGRectMake(root.bounds.size.width - 54, 14, 44, 44);
+    [x setTitle:@"✕" forState:UIControlStateNormal]; [x setTitleColor:[UIColor colorWithWhite:0.35 alpha:1] forState:UIControlStateNormal];
+    x.titleLabel.font = [UIFont systemFontOfSize:24];
+    [x addTarget:self action:@selector(hideFull) forControlEvents:UIControlEventTouchUpInside];
+    [_full addSubview:x];
+    [_full addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(nextPart)]];
     [root addSubview:_full];
+    [self drawCode];
     [_timer invalidate]; _timer = nil;   // der Code bleibt stehen, solange er gescannt wird
     UIScreen *screen = [UIScreen mainScreen];
     if ([screen respondsToSelector:@selector(setBrightness:)]) { _brightness = screen.brightness; screen.brightness = 1; }
@@ -128,7 +140,7 @@ static const CGFloat kRing = 5, kRingRadius = 26;
 - (void)hideFull {
     if (!_full) return;
     [_full removeFromSuperview];
-    _full = nil;
+    _full = nil; _fullQR = nil; _fullLbl = nil;
     UIScreen *screen = [UIScreen mainScreen];
     if ([screen respondsToSelector:@selector(setBrightness:)]) screen.brightness = _brightness;
     if (self.view.window) {
@@ -146,10 +158,15 @@ static const CGFloat kRing = 5, kRingRadius = 26;
 
 // Neuer Code mit frischem Einmal-Schlüssel, Plakette dreht sich, Rahmen läuft wieder voll ab.
 // Geteilter Modus: Antippen wechselt zwischen Teil 1 und 2. Voller Code: Antippen vergrößert wie bisher.
+// Antippen öffnet den Code im Vollbild (weiß, volle Helligkeit – so lesen alte Kameras am besten).
+// Geteilt: im Vollbild schaltet jedes Tippen zum nächsten Teil, ✕ schließt.
 - (void)tapCode {
-    if (_single) { [self showFull]; return; }
+    if (!_single && !_frozen) { _frozen = YES; [_ring removeAllAnimations]; _ring.strokeEnd = 1; }   // Code steht, Teile passen in jeder Reihenfolge
+    [self showFull];
+}
+- (void)nextPart {
+    if (_single) { [self hideFull]; return; }
     _part = (_part + 1) % MESH_SPLIT_PARTS;
-    if (!_frozen) { _frozen = YES; [_ring removeAllAnimations]; _ring.strokeEnd = 1; }   // Countdown aus: Code steht
     [self drawCode];
 }
 - (void)toggleMode {
@@ -162,10 +179,14 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     NSString *s = _single ? _code : [MeshSplitCode partsOf:_code][_part];
     // Reines Schwarz auf Weiß: der stärkste Kontrast für alte Kameras ohne Autofokus.
     _qr.image = [MeshQR imageForString:s sizePx:_qrSize module:[UIColor blackColor] background:[UIColor whiteColor]];
+    if (_fullQR) {
+        _fullQR.image = [MeshQR imageForString:s sizePx:_fullQR.bounds.size.width module:[UIColor blackColor] background:[UIColor whiteColor]];
+        _fullLbl.text = _single ? @"" : LF(@"Part %ld of %d · tap for next", (long)_part + 1, MESH_SPLIT_PARTS);
+    }
     _partBadge.hidden = _single;
     _partBadge.text = [NSString stringWithFormat:@"%ld/%d", (long)_part + 1, MESH_SPLIT_PARTS];
     _hint.text = _single ? L(@"One code for Android · tap here for iPod codes")
-                         : L(@"Tap the code for the next part · Android? Tap here");
+                         : L(@"Tap the code to show it · Android? Tap here");
 }
 
 - (void)refresh {

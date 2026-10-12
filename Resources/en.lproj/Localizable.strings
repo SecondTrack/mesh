@@ -358,7 +358,9 @@
 
 /* Geteilter QR-Code (iPod) */
 "One code for Android · tap here for iPod codes" = "One code for Android · tap here for iPod codes";
-"Tap the code for the next part · Android? Tap here" = "Tap the code for the next part · Android? Tap here";
 "%ld of %ld parts ✓ – now show part %@" = "%ld of %ld parts ✓ – now show part %@";
 
 "First start: Tor is downloading the network once – this can take a few minutes." = "First start: Tor is downloading the network once – this can take a few minutes.";
+
+"Tap the code to show it · Android? Tap here" = "Tap the code to show it · Android? Tap here";
+"Part %ld of %d · tap for next" = "Part %ld of %d · tap for next";

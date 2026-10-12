@@ -1,13 +1,57 @@
 #import "MeshQRDecoder.h"
 #include "quirc.h"
+#include <math.h>
 #import "MeshLog.h"
 
 @implementation MeshQRDecoder {
     struct quirc *_q;
     int _w, _h;
+    struct quirc *_q2;         // zweiter Durchlauf auf halber Auflösung
+    int _w2;
+    NSMutableData *_half;      // Graubild in halber Auflösung (vor quirc_end abgezweigt – quirc überschreibt sein Bild)
 }
 
-- (void)dealloc { if (_q) quirc_destroy(_q); }
+- (void)dealloc { if (_q) quirc_destroy(_q); if (_q2) quirc_destroy(_q2); }
+
+// Erster lesbarer Code in einem fertig geladenen quirc-Bild
+static NSString *firstCode(struct quirc *q) {
+    for (int i = 0; i < quirc_count(q); i++) {
+        struct quirc_code code; struct quirc_data data;
+        quirc_extract(q, i, &code);
+        if (quirc_decode(&code, &data) != 0) {   // gespiegelt (Frontkamera, Spiegel) noch einmal
+            quirc_flip(&code);
+            if (quirc_decode(&code, &data) != 0) continue;
+        }
+        NSString *text = [[NSString alloc] initWithBytes:data.payload length:data.payload_len encoding:NSUTF8StringEncoding];
+        if (text.length) return text;
+    }
+    return nil;
+}
+
+// Halbe Auflösung (2×2-Mittel): Die iPod-Kamera hat festen Fokus, aus der Nähe sind Kanten weich –
+// verkleinert werden sie wieder scharf genug, und quirc findet die Ecken leichter.
+- (void)keepHalf:(const uint8_t *)gray width:(int)w height:(int)h {
+    if (w != h || w / 2 < 64) { _half = nil; return; }
+    int s2 = w / 2;
+    if (_half.length != (NSUInteger)(s2 * s2)) _half = [NSMutableData dataWithLength:(NSUInteger)(s2 * s2)];
+    uint8_t *o = _half.mutableBytes;
+    for (int y = 0; y < s2; y++) {
+        const uint8_t *a = gray + (size_t)(2 * y) * w, *b = a + w;
+        for (int x = 0; x < s2; x++) o[y * s2 + x] = (uint8_t)((a[2*x] + a[2*x+1] + b[2*x] + b[2*x+1]) / 4);
+    }
+}
+- (NSString *)decodeHalf {
+    if (!_half.length) return nil;
+    int s2 = (int)sqrt((double)_half.length);
+    if (!_q2) _q2 = quirc_new();
+    if (!_q2) return nil;
+    if (_w2 != s2) { if (quirc_resize(_q2, s2, s2) < 0) { _w2 = 0; return nil; } _w2 = s2; }
+    int gw = 0, gh = 0; uint8_t *g = quirc_begin(_q2, &gw, &gh);
+    if (!g || gw != s2 || gh != s2) return nil;
+    memcpy(g, _half.bytes, _half.length);
+    quirc_end(_q2);
+    return firstCode(_q2);
+}
 
 // Graustufenbild in quircs Puffer schreiben (Mittelwert aus B, G, R).
 - (BOOL)loadGray:(const uint8_t *)base width:(int)w height:(int)h bytesPerRow:(size_t)bpr {
@@ -28,6 +72,7 @@
             g[x] = (uint8_t)((p[0] + p[1] + p[2]) / 3);
         }
     }
+    [self keepHalf:gray width:w height:h];
     quirc_end(_q);
     return YES;
 }
@@ -69,17 +114,7 @@
         }
     }
 #endif
-    for (int i = 0; i < quirc_count(_q); i++) {
-        struct quirc_code code; struct quirc_data data;
-        quirc_extract(_q, i, &code);
-        if (quirc_decode(&code, &data) != 0) {   // gespiegelt (Frontkamera, Spiegel) noch einmal
-            quirc_flip(&code);
-            if (quirc_decode(&code, &data) != 0) continue;
-        }
-        NSString *text = [[NSString alloc] initWithBytes:data.payload length:data.payload_len encoding:NSUTF8StringEncoding];
-        if (text.length) return text;
-    }
-    return nil;
+    return firstCode(_q) ?: [self decodeHalf];
 }
 
 @end
