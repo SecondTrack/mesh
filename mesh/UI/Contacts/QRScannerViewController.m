@@ -6,6 +6,7 @@
 #import "MeshPopup.h"
 #import "MeshL10n.h"
 #import "MeshQRDecoder.h"
+#import "MeshSplitCode.h"
 
 @interface QRScannerViewController () <AVCaptureVideoDataOutputSampleBufferDelegate>
 @end
@@ -18,6 +19,8 @@
     int _frameSkip;
     volatile BOOL _done;   // Kamera-Queue: kein weiteres Bild dekodieren
     BOOL _finished;        // Main-Thread: Scanner ist geschlossen
+    MeshSplitCode *_split; // nur auf _queue: sammelt "1/2" und "2/2" eines geteilten iPod-Codes
+    UILabel *_hint;
 }
 
 - (void)loadView {
@@ -71,7 +74,7 @@
     frame.layer.cornerRadius = [MeshTheme cardRadius];
     [self.view addSubview:frame];
 
-    UILabel *hint = [[UILabel alloc] initWithFrame:CGRectMake(20, (H-box)/2 - 40, W-40, 24)];
+    UILabel *hint = _hint = [[UILabel alloc] initWithFrame:CGRectMake(20, (H-box)/2 - 40, W-40, 24)];
     hint.text = L(@"Hold the npub QR in the frame"); hint.textColor = [MeshTheme ink];
     hint.textAlignment = NSTextAlignmentCenter; hint.font = [MeshTheme bodyFont];
     hint.backgroundColor = [UIColor clearColor];
@@ -107,6 +110,19 @@
     if (!_decoder) _decoder = [[MeshQRDecoder alloc] init];
     NSString *payload = [_decoder decodePixelBuffer:CMSampleBufferGetImageBuffer(sampleBuffer)];
     if (!payload) return;
+    if ([MeshSplitCode isPart:payload]) {   // geteilter iPod-Code: erst weiter, wenn beide Teile da sind
+        if (!_split) _split = [[MeshSplitCode alloc] init];
+        NSString *full = [_split add:payload];
+        if (!full) {
+            NSInteger n = _split.lastPart;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                _hint.text = n == 1 ? L(@"Part 1/2 ✓ – now show part 2") : L(@"Part 2/2 ✓ – now show part 1");
+                _hint.textColor = [MeshTheme accent];
+            });
+            return;
+        }
+        payload = full;
+    }
     _done = YES;
     dispatch_async(dispatch_get_main_queue(), ^{ [self stopAndDismissWith:payload]; });
 }

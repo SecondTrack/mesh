@@ -13,6 +13,7 @@
 #import "MeshL10n.h"
 #import "MeshClipboard.h"
 #import "MeshControls.h"
+#import "MeshSplitCode.h"
 
 static const NSTimeInterval kRefresh = 10;   // wie Android: nicht schneller, sonst verfällt ein Code vor dem Einlösen
 static const CGFloat kRing = 5, kRingRadius = 26;
@@ -26,6 +27,9 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     NSString *_code;             // gerade gezeigter Code (für die Vollbildansicht)
     UIView *_full;               // Vollbild-Code, solange offen
     CGFloat _brightness;         // Bildschirmhelligkeit vor der Vollbildansicht
+    BOOL _single;                // ein voller Code (für Android) statt zwei Teilen (iPod ↔ iPod)
+    NSInteger _part;             // gezeigter Teil 0/1 im geteilten Modus
+    UILabel *_partBadge, *_hint;
 }
 
 - (void)loadView {
@@ -69,14 +73,21 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     _qr = [[UIImageView alloc] initWithFrame:CGRectMake(12, 12, _qrSize, _qrSize)];
     [cardV addSubview:_qr];
     [frame addSubview:cardV];
-    [frame addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(showFull)]];
+    [frame addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapCode)]];
     [self.view addSubview:frame];
+    // Teil-Anzeige oben rechts auf dem Rahmen ("1/2")
+    _partBadge = [MeshControls labelWithFrame:CGRectMake(frame.frame.origin.x + outer - 44, frame.frame.origin.y - 6, 44, 22) font:[MeshTheme timeFont] color:[UIColor blackColor]];
+    _partBadge.textAlignment = NSTextAlignmentCenter; _partBadge.backgroundColor = [MeshTheme accent];
+    _partBadge.layer.cornerRadius = 11; _partBadge.layer.masksToBounds = YES;
+    [self.view addSubview:_partBadge];
     y += outer + 10;
 
-    UILabel *hint = [MeshControls labelWithFrame:CGRectMake(20, y, W - 40, 18) font:[MeshTheme timeFont] color:[MeshTheme muted]];
-    hint.textAlignment = NSTextAlignmentCenter;
-    hint.text = L(@"Only one person per code · tap to enlarge");
-    [self.view addSubview:hint];
+    _single = [[NSUserDefaults standardUserDefaults] boolForKey:@"meshQRSingle"];
+    _hint = [MeshControls labelWithFrame:CGRectMake(12, y - 2, W - 24, 22) font:[MeshTheme timeFont] color:[MeshTheme muted]];
+    _hint.textAlignment = NSTextAlignmentCenter; _hint.adjustsFontSizeToFitWidth = YES; _hint.minimumFontSize = 9;
+    _hint.userInteractionEnabled = YES;
+    [_hint addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleMode)]];
+    [self.view addSubview:_hint];
     y += 28;
 
     [self.view addSubview:[MeshControls primaryButtonWithFrame:CGRectMake(28, y, W - 56, 46) title:L(@"Copy link") target:self action:@selector(tapCopy)]];
@@ -132,12 +143,34 @@ static const CGFloat kRing = 5, kRingRadius = 26;
 }
 
 // Neuer Code mit frischem Einmal-Schlüssel, Plakette dreht sich, Rahmen läuft wieder voll ab.
+// Geteilter Modus: Antippen wechselt zwischen Teil 1 und 2. Voller Code: Antippen vergrößert wie bisher.
+- (void)tapCode {
+    if (_single) { [self showFull]; return; }
+    _part = 1 - _part;
+    [self drawCode];
+}
+- (void)toggleMode {
+    _single = !_single; _part = 0;
+    [[NSUserDefaults standardUserDefaults] setBool:_single forKey:@"meshQRSingle"];
+    [self drawCode];
+}
+- (void)drawCode {
+    if (!_code) return;
+    NSString *s = _single ? _code : [MeshSplitCode partsOf:_code][_part];
+    // Reines Schwarz auf Weiß: der stärkste Kontrast für alte Kameras ohne Autofokus.
+    _qr.image = [MeshQR imageForString:s sizePx:_qrSize module:[UIColor blackColor] background:[UIColor whiteColor]];
+    _partBadge.hidden = _single;
+    _partBadge.text = _part ? @"2/2" : @"1/2";
+    _hint.text = _single ? L(@"One code for Android · tap here for two iPod codes")
+                         : L(@"Tap the code for part 2 · Android? Tap here");
+}
+
 - (void)refresh {
+    if (!_single && _part == 1) return;   // Teil 2 bleibt stehen, bis er gescannt ist (sonst passt er nicht mehr zu Teil 1)
     NSString *code = [[MeshSession shared] myContactCode];
     if (!code) return;
     _code = code;
-    // Reines Schwarz auf Weiß: der stärkste Kontrast für alte Kameras ohne Autofokus.
-    _qr.image = [MeshQR imageForString:code sizePx:_qrSize module:[UIColor blackColor] background:[UIColor whiteColor]];
+    [self drawCode];
     [UIView transitionWithView:_badge duration:0.5 options:UIViewAnimationOptionTransitionFlipFromLeft animations:nil completion:nil];
     CABasicAnimation *drain = [CABasicAnimation animationWithKeyPath:@"strokeEnd"];
     drain.fromValue = @1;

@@ -355,4 +355,9 @@
 "Add contact?" = "Kontakt hinzufügen?";
 "%@\nshared by %@\n%@\n\nOnly add people you know." = "%@\ngeteilt von %@\n%@\n\nFüge nur Menschen hinzu, die du kennst.";
 "Starting Tor … %d%%" = "Starte Tor … %d %%";
-"Only one person per code · tap to enlarge" = "Nur eine Person pro Code · antippen zum Vergrößern";
+
+/* Geteilter QR-Code (iPod) */
+"One code for Android · tap here for two iPod codes" = "Ein Code für Android · hier tippen für zwei iPod-Codes";
+"Tap the code for part 2 · Android? Tap here" = "Code antippen für Teil 2 · Android? Hier tippen";
+"Part 1/2 ✓ – now show part 2" = "Teil 1/2 ✓ – jetzt Teil 2 zeigen";
+"Part 2/2 ✓ – now show part 1" = "Teil 2/2 ✓ – jetzt Teil 1 zeigen";
