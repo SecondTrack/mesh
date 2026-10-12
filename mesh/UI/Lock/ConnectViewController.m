@@ -21,11 +21,12 @@ static const CGFloat kCore = 44, kCoreGap = 6;   // Schild in der Mitte; Linien 
     UIView *_stage;            // Animationsfläche, Mittelpunkt = Mittelknoten
     NSMutableArray *_nodes;    // CAShapeLayer je Relay
     NSMutableArray *_links;    // Verbindungslinien je Relay
-    UILabel *_status, *_count;
+    UILabel *_status, *_count, *_first;   // _first: Hinweis beim allerersten Tor-Start
     UIImageView *_onion;       // Tor-Zwiebel hinter dem Statustext
     NSTimer *_tick;            // zählt die Prozente weich hoch (10 × je Sekunde)
     float _shown;              // angezeigter Fortschritt 0…100
     BOOL _finished;
+    BOOL _firstStart;          // beim Öffnen noch kein Tor-Verzeichnis da (einmal prüfen, nicht bei jedem Tick)
     int _progress;             // zuletzt gesehener Fortschritt (Tor-Prozent, Relays); -1 = noch keiner
 }
 
@@ -46,6 +47,10 @@ static const CGFloat kCore = 44, kCoreGap = 6;   // Schild in der Mitte; Linien 
 
     _status = [self addLabel:@"" font:[MeshTheme nameFont] color:[MeshTheme ink] y:H - 84 height:22];
     _count  = [self addLabel:@"" font:[MeshTheme timeFont] color:[MeshTheme faint] y:H - 60 height:16];
+    // Beim ersten Start lädt Tor erst das Netz-Verzeichnis (mehrere MB) – am iPod dauert das Minuten.
+    _first = [self addLabel:L(@"First start: Tor is downloading the network once – this can take a few minutes.") font:[MeshTheme timeFont] color:[MeshTheme muted] y:H - 42 height:32];
+    _first.numberOfLines = 2; _first.hidden = YES;
+    _firstStart = [MeshSession shared].torFirstStart;
     _onion = [[UIImageView alloc] initWithImage:[MeshGlyphs icon:@"onion" color:[MeshTheme accent] size:18]];
     _onion.hidden = YES;
     [self.view addSubview:_onion];
@@ -165,6 +170,7 @@ static CAShapeLayer *circleLayer(CGPoint c, CGFloat r, UIColor *fill, UIColor *s
     else if (s.torFailed) _status.text = L(@"Tor is not running — Mesh stays offline");
     else if (s.torReady) _status.text = L(@"Connecting via Tor …");
     else _status.text = LF(@"Starting Tor … %d%%", (int)_shown);
+    _first.hidden = !(s.usesTor && !up && !s.torReady && !s.torFailed && _firstStart);
     [self placeOnion:s.usesTor];
 }
 

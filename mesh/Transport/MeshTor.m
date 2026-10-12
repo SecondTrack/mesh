@@ -39,6 +39,9 @@ static const NSTimeInterval kGiveUp = 180;   // so lange ohne Dienst: "Tor nicht
     pid_t _child;            // selbst gestartetes Tor (0 = keins), wird nach dem Ende abgeholt
     NSDate *_unreachable;    // seit wann ein laufendes Tor nicht antwortet (nil = antwortet oder läuft nicht)
 }
+- (BOOL)hasDirectoryCache {
+    return [[NSFileManager defaultManager] fileExistsAtPath:[kDataDir stringByAppendingPathComponent:@"cached-microdesc-consensus"]];
+}
 
 + (instancetype)shared {
     static MeshTor *s; static dispatch_once_t once;

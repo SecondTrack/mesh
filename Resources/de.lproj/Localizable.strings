@@ -360,3 +360,5 @@
 "One code for Android · tap here for iPod codes" = "Ein Code für Android · hier tippen für iPod-Codes";
 "Tap the code for the next part · Android? Tap here" = "Code antippen für den nächsten Teil · Android? Hier tippen";
 "%ld of %ld parts ✓ – now show part %@" = "%ld von %ld Teilen ✓ – jetzt Teil %@ zeigen";
+
+"First start: Tor is downloading the network once – this can take a few minutes." = "Erster Start: Tor lädt einmalig das Netzwerk – das kann ein paar Minuten dauern.";

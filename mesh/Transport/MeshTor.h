@@ -21,6 +21,7 @@ typedef enum { MeshTorOff = 0, MeshTorStarting, MeshTorReady, MeshTorFailed } Me
 // 0 wenn Tor aus/nicht bereit, dann verbindet MeshTLS direkt (nur ohne Tor); sonst 19050.
 @property (nonatomic, readonly) int socksPort;
 
+- (BOOL)hasDirectoryCache;   // Netz-Verzeichnis schon da? Ohne (erster Start) lädt Tor es erst herunter – das dauert am iPod Minuten
 - (void)forgetState;   // Tor beenden und seinen Zustand (Guards, letzte Nutzung) löschen; startet danach neu
 - (void)start;   // ohne Wirkung, wenn deaktiviert; sonst den Dienst beobachten (eigener Thread)
 @end

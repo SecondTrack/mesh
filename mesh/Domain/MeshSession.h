@@ -68,6 +68,7 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 - (BOOL)torReady;                 // Tor-Dienst verbunden: erst dann gehen Relays raus
 - (BOOL)torFailed;                // Dienst seit Minuten nicht erreichbar
 - (int)torBootstrapPercent;
+- (BOOL)torFirstStart;            // Tor hat noch kein Netz-Verzeichnis: erster Start dauert deutlich länger
 - (BOOL)clockPlausible;   // NO: Geräteuhr vor dem Build-Datum, Zertifikatsablauf nur grob prüfbar
 
 - (void)setOpenChat:(NSString *)peerHex;   // sichtbarer Chat (nil = keiner): Neues gilt dort als gelesen

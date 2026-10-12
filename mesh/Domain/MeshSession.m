@@ -232,6 +232,7 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 - (BOOL)torReady { return [MeshTor shared].state == MeshTorReady; }
 - (BOOL)torFailed { return [MeshTor shared].state == MeshTorFailed; }
 - (int)torBootstrapPercent { return [MeshTor shared].bootstrapPercent; }
+- (BOOL)torFirstStart { return self.usesTor && ![[MeshTor shared] hasDirectoryCache]; }
 - (BOOL)clockPlausible { return MeshClockPlausible(time(NULL), MESH_BUILD_TIME); }
 
 #pragma mark - Selbstlöschen
