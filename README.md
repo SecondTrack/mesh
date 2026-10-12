@@ -1,53 +1,8 @@
 # Mesh
 
-**Encrypted messenger without a phone number – over the Tor network**
+**Encrypted chat for old iPods – no phone number, no account, no central server. Runs over Nostr and Tor.**
 
-Decentralized, encrypted messenger over Nostr and Tor. Anonymous, no phone number, no central server – chats, voice messages and pictures.
-
-## Features
-
-- Chats without a phone number – just a key
-- End-to-end encrypted, database encrypted on the device
-- Voice messages and pictures
-- Runs over Tor – no central server
-- PIN lock
-
-## Runs on
-
-iOS 6.1.6 · jailbroken iPod touch
-
-## Install
-
-The easiest way is the **[Reboot App Store](https://github.com/SecondTrack/reboot)** right on the iPod.
-By hand: download the `.deb` from the [latest release](https://github.com/SecondTrack/mesh/releases/latest), install it with `dpkg -i`, then run `uicache`.
-
-## Build it yourself
-
-With [Theos](https://theos.dev) (iOS SDK with armv7):
-
-```sh
-make package
-```
-
-## Part of Reboot
-
-This app is part of **Reboot** by **Second Track** – new apps for old iPods.
-All apps: [SecondTrack](https://github.com/SecondTrack).
-
-## License
-
-GPL-3.0 – see [LICENSE](LICENSE). Bundled libraries under `vendor/` keep their own licenses.
-Not affiliated with Apple. iPod is a trademark of Apple Inc.
-
----
-
-# Mesh for old iPods
-
-Encrypted Nostr messenger for jailbroken iPod touch and iPhone with iOS 4.2 to 6.1.
-Counterpart to the Mesh Android app: same design, same message format, compatible with each other.
-
-WhatsApp, Signal and Telegram lock out old clients on the server side. Nostr relays don't:
-your own client keeps working as long as it speaks the protocol.
+WhatsApp, Signal and Telegram lock out old clients on the server side. Nostr relays don't: your own client keeps working as long as it speaks the protocol. Mesh is that client for iPods and iPhones on iOS 4.2 to 6.1 – and the counterpart to the Mesh Android app: same design, same message format, they talk to each other.
 
 ## Status
 
@@ -106,3 +61,12 @@ docs/        architecture and security model, porting, design preview
 - touch 2G: ARMv6 toolchain and libraries (docs/PORTING.md).
 - NIP-44 instead of NIP-04 – only together with the Android app, otherwise the two can no longer talk.
 - Metadata: pubkeys and timestamps are stored unencrypted in the database.
+
+## Install
+
+Easiest via the **[Reboot App Store](https://github.com/SecondTrack/reboot)** right on the iPod. By hand: `.deb` from the [latest release](https://github.com/SecondTrack/mesh/releases/latest), `dpkg -i`, then `uicache`.
+
+## License
+
+GPL-3.0 – see [LICENSE](LICENSE). Libraries under `vendor/` keep their own licenses.
+Not affiliated with Apple. iPod is a trademark of Apple Inc.
