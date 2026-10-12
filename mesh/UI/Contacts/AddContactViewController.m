@@ -2,6 +2,7 @@
 #import "MeshScreen.h"
 #import "MeshCaps.h"
 #import "MeshPopup.h"
+#import "ChatViewController.h"
 #import "MeshTheme.h"
 #import "MeshPageHeader.h"
 #import "MeshSession.h"
@@ -69,18 +70,25 @@
         __weak AddContactViewController *ws = self;
         [[MeshSession shared] addContactByWords:self.keyField.text name:_nameField.text done:^(NSString *hex, NSString *error) {
             [MeshPopup dismissAll];
-            if (hex) { [ws.navigationController popViewControllerAnimated:YES]; return; }
+            if (hex) { [ws openChat:hex]; return; }
             [MeshPopup confirm:L(@"Not added") message:error action:L(@"OK") destructive:NO handler:nil];
         }];
         return;
     }
     NSString *hex = [[MeshSession shared] addContact:self.keyField.text name:_nameField.text];
     if (hex) {
-        [self.navigationController popViewControllerAnimated:YES];
+        [self openChat:hex];
     } else {
         [MeshPopup confirm:L(@"Invalid") message:L(@"Please enter a valid npub or 64-character hex pubkey.")
                     action:L(@"OK") destructive:NO handler:nil];
     }
+}
+
+// Neuer Kontakt: gleich seinen Chat öffnen (wie nach dem QR-Scan); die Chatliste zeigt nur Chats mit Nachrichten
+- (void)openChat:(NSString *)hex {
+    UINavigationController *nav = self.navigationController;
+    [nav popViewControllerAnimated:NO];
+    [nav pushViewController:[[ChatViewController alloc] initWithPeer:hex] animated:YES];
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)tf {

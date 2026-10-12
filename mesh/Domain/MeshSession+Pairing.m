@@ -99,9 +99,17 @@ static void derive(NSString *words, NSString **tag, NSData **key) {
             gPairWait[sub] = [@{@"events": [NSMutableArray array], @"key": key, @"tag": tag} mutableCopy];
             long long now = (long long)[[NSDate date] timeIntervalSince1970];
             [self.pool subscribe:sub filter:@{@"kinds": @[@(kPairKind)], @"#d": @[tag], @"since": @(now - kPairValid - 60), @"limit": @10}];
-            // Antworten der Relays einsammeln, dann einmal entscheiden
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                NSMutableDictionary *w = gPairWait[sub]; [gPairWait removeObjectForKey:sub];
+            // Antworten der Relays einsammeln: 2 s nach der ersten Karte (falls noch eine zweite kommt), höchstens 8 s
+            NSDate *start = [NSDate date];
+            __block void (^check)(void);
+            void (^decide)(void);
+            decide = ^{
+                NSMutableDictionary *w = gPairWait[sub]; if (!w) return;
+                NSTimeInterval since = -[start timeIntervalSinceNow];
+                NSDate *first = w[@"first"];
+                if (since < 8 && !(first && -[first timeIntervalSinceNow] >= 2)) { dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), check); return; }
+                check = nil;
+                [gPairWait removeObjectForKey:sub];
                 NSMutableSet *codes = [NSMutableSet set];
                 long long t = (long long)[[NSDate date] timeIntervalSince1970];
                 for (MeshEvent *e in w[@"events"]) {
@@ -113,7 +121,9 @@ static void derive(NSString *words, NSString **tag, NSData **key) {
                 if (codes.count > 1) { done(nil, L(@"These words point to more than one contact. Ask for new words.")); return; }
                 NSString *hex = [self addContact:[codes anyObject] name:name];
                 done(hex, hex ? nil : L(@"That is your own code."));
-            });
+            };
+            check = decide;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), check);
         });
     });
 }
@@ -123,6 +133,6 @@ static void derive(NSString *words, NSString **tag, NSData **key) {
 @implementation MeshSession (PairingInternal)
 - (void)receivePairingEvent:(MeshEvent *)event subId:(NSString *)subId {
     NSMutableDictionary *w = gPairWait[subId];
-    if (w && [w[@"events"] count] < 20) [w[@"events"] addObject:event];
+    if (w && [w[@"events"] count] < 20) { [w[@"events"] addObject:event]; if (!w[@"first"]) w[@"first"] = [NSDate date]; }
 }
 @end
