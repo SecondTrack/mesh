@@ -69,7 +69,6 @@
 
 // Kontakt hinzufügen
 "Add contact" = "Kontakt hinzufügen";
-"NPUB OR HEX PUBKEY" = "NPUB ODER HEX-PUBKEY";
 "⌗  Scan QR" = "⌗  QR scannen";
 "NAME (OPTIONAL)" = "NAME (OPTIONAL)";
 "Display name" = "Anzeigename";
@@ -384,3 +383,5 @@
 "No contact found for these words. They may have expired – ask for new ones." = "Zu diesen Wörtern wurde kein Kontakt gefunden. Vielleicht sind sie abgelaufen – frag nach neuen.";
 "These words point to more than one contact. Ask for new words." = "Diese Wörter führen zu mehr als einem Kontakt. Frag nach neuen Wörtern.";
 "That is your own code." = "Das ist dein eigener Code.";
+
+"NPUB, LINK OR 4 WORDS" = "NPUB, LINK ODER 4 WÖRTER";

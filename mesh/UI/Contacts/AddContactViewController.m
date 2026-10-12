@@ -25,9 +25,12 @@
     [self.view addSubview:header];
 
     CGFloat y = [MeshPageHeader height] + 24;
-    [self.view addSubview:[MeshControls sectionLabelWithFrame:CGRectMake(18, y, W - 36, 16) text:L(@"NPUB OR HEX PUBKEY")]];
+    [self.view addSubview:[MeshControls sectionLabelWithFrame:CGRectMake(18, y, W - 36, 16) text:L(@"NPUB, LINK OR 4 WORDS")]];
     y += 22;
     _keyField = [MeshControls fieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"npub1… or 4 words") mono:YES delegate:self];
+    _keyField.autocorrectionType = UITextAutocorrectionTypeNo;          // Wörter nicht „verbessern“
+    _keyField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    _keyField.returnKeyType = UIReturnKeyNext;
     [self.view addSubview:_keyField];
     y += 58;
 
@@ -43,6 +46,7 @@
     [self.view addSubview:[MeshControls sectionLabelWithFrame:CGRectMake(18, y, W - 36, 16) text:L(@"NAME (OPTIONAL)")]];
     y += 22;
     _nameField = [MeshControls fieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"Display name") mono:NO delegate:self];
+    _nameField.returnKeyType = UIReturnKeyGo;   // Return fügt hinzu: der Knopf liegt bei offener Tastatur darunter
     [self.view addSubview:_nameField];
     y += 76;
 
@@ -79,7 +83,12 @@
     }
 }
 
-- (BOOL)textFieldShouldReturn:(UITextField *)tf { [tf resignFirstResponder]; return NO; }
+- (BOOL)textFieldShouldReturn:(UITextField *)tf {
+    if (tf == self.keyField) { [_nameField becomeFirstResponder]; return NO; }
+    [tf resignFirstResponder];
+    [self tapAdd];
+    return NO;
+}
 
 // Unter iOS 4 sind Delegates unsafe_unretained, hier selbst lösen.
 - (void)dealloc { self.keyField.delegate = nil; _nameField.delegate = nil; }
