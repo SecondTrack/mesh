@@ -153,3 +153,10 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 - (BOOL)sendContact:(NSString *)contactHex to:(NSString *)peerHex;   // Kontaktkarte mit Name und Mesh-Code
 - (NSArray *)acceptedContacts;                                       // Hex-Pubkeys, z.B. zum Teilen
 @end
+
+@interface MeshSession (Pairing)
+// Kontakt per 4 Wörtern (ohne Kamera): Wörter erzeugen (10 Minuten gültig) bzw. eingetippte einlösen
+- (void)pairingWords:(void (^)(NSString *words, NSDate *expires, NSString *error))done;
+- (void)addContactByWords:(NSString *)words name:(NSString *)name done:(void (^)(NSString *hex, NSString *error))done;
++ (BOOL)looksLikePairingWords:(NSString *)text;
+@end

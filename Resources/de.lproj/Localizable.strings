@@ -364,3 +364,23 @@
 
 "Tap the code to show it · Android? Tap here" = "Code antippen zum Zeigen · Android? Hier tippen";
 "Part %ld of %d · tap for next" = "Teil %ld von %d · tippen für weiter";
+
+/* Kontakt per 4 Wörtern */
+"4 words" = "4 Wörter";
+"Your 4 words" = "Deine 4 Wörter";
+"Creating …" = "Wird erstellt …";
+"Your contact types them in Mesh: round button in the chat list → Add contact. Only one person can use them." = "Dein Kontakt tippt sie in Mesh ein: runder Knopf in der Chatliste → Kontakt hinzufügen. Nur eine Person kann sie benutzen.";
+"Close" = "Schließen";
+"Expired – close and create new ones." = "Abgelaufen – schließen und neue erstellen.";
+"Valid for %d:%02d" = "Gültig noch %d:%02d";
+"Looking up the 4 words …" = "Suche die 4 Wörter …";
+"Not added" = "Nicht hinzugefügt";
+"npub1… or 4 words" = "npub1… oder 4 Wörter";
+"Mesh is locked." = "Mesh ist gesperrt.";
+"Not connected yet. Try again in a moment." = "Noch nicht verbunden. Gleich nochmal versuchen.";
+"Word list missing." = "Wortliste fehlt.";
+"Could not create the code." = "Code konnte nicht erstellt werden.";
+"Please enter the 4 words exactly as shown." = "Bitte die 4 Wörter genau so eingeben, wie sie angezeigt werden.";
+"No contact found for these words. They may have expired – ask for new ones." = "Zu diesen Wörtern wurde kein Kontakt gefunden. Vielleicht sind sie abgelaufen – frag nach neuen.";
+"These words point to more than one contact. Ask for new words." = "Diese Wörter führen zu mehr als einem Kontakt. Frag nach neuen Wörtern.";
+"That is your own code." = "Das ist dein eigener Code.";

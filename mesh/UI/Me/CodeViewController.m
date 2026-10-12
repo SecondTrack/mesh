@@ -32,7 +32,11 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     UILabel *_partBadge, *_hint;
     BOOL _frozen;
     UIImageView *_fullQR;        // Vollbild: Code (geteilt: aktueller Teil)
-    UILabel *_fullLbl;           // Vollbild: "Teil 1 von 3"                // nach dem ersten Antippen bleibt der Code stehen (Teile passen in jeder Reihenfolge)
+    UILabel *_fullLbl;           // Vollbild: "Teil 1 von 3"
+    UIView *_wordsView;          // 4 Wörter für iPods ohne Kamera
+    UILabel *_wordsLbl, *_wordsTime;
+    NSDate *_wordsUntil;
+    NSTimer *_wordsTimer;                // nach dem ersten Antippen bleibt der Code stehen (Teile passen in jeder Reihenfolge)
 }
 
 - (void)loadView {
@@ -93,7 +97,9 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     [self.view addSubview:_hint];
     y += 28;
 
-    [self.view addSubview:[MeshControls primaryButtonWithFrame:CGRectMake(28, y, W - 56, 46) title:L(@"Copy link") target:self action:@selector(tapCopy)]];
+    CGFloat bw = (W - 56 - 10) / 2;
+    [self.view addSubview:[MeshControls primaryButtonWithFrame:CGRectMake(28, y, bw, 46) title:L(@"Copy link") target:self action:@selector(tapCopy)]];
+    [self.view addSubview:[MeshControls secondaryButtonWithFrame:CGRectMake(28 + bw + 10, y, bw, 46) title:L(@"4 words") target:self action:@selector(tapWords)]];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -151,6 +157,7 @@ static const CGFloat kRing = 5, kRingRadius = 26;
 
 - (void)stop {
     [self hideFull];
+    [self closeWords];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [_timer invalidate]; _timer = nil;
     [_ring removeAllAnimations];
@@ -204,6 +211,48 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     _ring.strokeEnd = 0;
     [_ring removeAllAnimations];
     [_ring addAnimation:drain forKey:@"countdown"];
+}
+
+// 4 Wörter: für Kontakte ohne Kamera, 10 Minuten gültig (MeshSession+Pairing)
+- (void)tapWords {
+    if (_wordsView) return;
+    UIView *root = self.view.window ?: self.view;
+    CGFloat W = root.bounds.size.width, H = root.bounds.size.height;
+    _wordsView = [[UIView alloc] initWithFrame:root.bounds];
+    _wordsView.backgroundColor = [MeshTheme bg];
+    UILabel *t = [MeshControls labelWithFrame:CGRectMake(20, 60, W - 40, 22) font:[MeshTheme nameFont] color:[MeshTheme ink]];
+    t.textAlignment = NSTextAlignmentCenter; t.text = L(@"Your 4 words");
+    [_wordsView addSubview:t];
+    _wordsLbl = [MeshControls labelWithFrame:CGRectMake(20, 110, W - 40, 190) font:[UIFont boldSystemFontOfSize:32] color:[MeshTheme accent]];
+    _wordsLbl.textAlignment = NSTextAlignmentCenter; _wordsLbl.numberOfLines = 4; _wordsLbl.text = @"…";
+    [_wordsView addSubview:_wordsLbl];
+    _wordsTime = [MeshControls labelWithFrame:CGRectMake(20, 310, W - 40, 18) font:[MeshTheme timeFont] color:[MeshTheme muted]];
+    _wordsTime.textAlignment = NSTextAlignmentCenter; _wordsTime.text = L(@"Creating …");
+    [_wordsView addSubview:_wordsTime];
+    UILabel *how = [MeshControls labelWithFrame:CGRectMake(24, 340, W - 48, 60) font:[MeshTheme timeFont] color:[MeshTheme muted]];
+    how.textAlignment = NSTextAlignmentCenter; how.numberOfLines = 3;
+    how.text = L(@"Your contact types them in Mesh: round button in the chat list → Add contact. Only one person can use them.");
+    [_wordsView addSubview:how];
+    [_wordsView addSubview:[MeshControls secondaryButtonWithFrame:CGRectMake(28, H - 76, W - 56, 46) title:L(@"Close") target:self action:@selector(closeWords)]];
+    [root addSubview:_wordsView];
+    __weak CodeViewController *ws = self;
+    [[MeshSession shared] pairingWords:^(NSString *words, NSDate *expires, NSString *error) {
+        CodeViewController *ss = ws; if (!ss || !ss->_wordsView) return;
+        if (!words) { ss->_wordsLbl.text = @""; ss->_wordsTime.text = error; return; }
+        ss->_wordsLbl.text = [words stringByReplacingOccurrencesOfString:@" " withString:@"\n"];
+        ss->_wordsUntil = expires;
+        [ss tickWords];
+        ss->_wordsTimer = [NSTimer scheduledTimerWithTimeInterval:1 target:ss selector:@selector(tickWords) userInfo:nil repeats:YES];
+    }];
+}
+- (void)tickWords {
+    NSTimeInterval left = [_wordsUntil timeIntervalSinceNow];
+    if (left <= 0) { _wordsLbl.textColor = [MeshTheme muted]; _wordsTime.text = L(@"Expired – close and create new ones."); [_wordsTimer invalidate]; _wordsTimer = nil; return; }
+    _wordsTime.text = LF(@"Valid for %d:%02d", (int)left / 60, (int)left % 60);
+}
+- (void)closeWords {
+    [_wordsTimer invalidate]; _wordsTimer = nil;
+    [_wordsView removeFromSuperview]; _wordsView = nil;
 }
 
 - (void)tapCopy {

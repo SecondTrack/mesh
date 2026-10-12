@@ -372,6 +372,7 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 
 - (void)pool:(MeshRelayPool *)pool didReceiveEvent:(MeshEvent *)event subId:(NSString *)subId {
     if (!_unlocked) return;   // nach dem Sperren können noch Events in der Main-Queue stehen
+    if ([subId hasPrefix:@"pair-"]) { [self receivePairingEvent:event subId:subId]; return; }
     if (event.kind == 0) { [self receiveProfile:event]; return; }
     // An welche eigene Identität? (p-Tag; eine DM an mehrere eigene geht an jede)
     BOOL changed = NO;

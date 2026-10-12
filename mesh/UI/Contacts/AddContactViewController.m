@@ -27,7 +27,7 @@
     CGFloat y = [MeshPageHeader height] + 24;
     [self.view addSubview:[MeshControls sectionLabelWithFrame:CGRectMake(18, y, W - 36, 16) text:L(@"NPUB OR HEX PUBKEY")]];
     y += 22;
-    _keyField = [MeshControls fieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:@"npub1… / hex" mono:YES delegate:self];
+    _keyField = [MeshControls fieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"npub1… or 4 words") mono:YES delegate:self];
     [self.view addSubview:_keyField];
     y += 58;
 
@@ -59,6 +59,17 @@
 }
 
 - (void)tapAdd {
+    if ([MeshSession looksLikePairingWords:self.keyField.text]) {   // 4 Wörter statt npub (Kontakt ohne Kamera)
+        [self.keyField resignFirstResponder]; [_nameField resignFirstResponder];
+        [MeshPopup info:L(@"Looking up the 4 words …")];
+        __weak AddContactViewController *ws = self;
+        [[MeshSession shared] addContactByWords:self.keyField.text name:_nameField.text done:^(NSString *hex, NSString *error) {
+            [MeshPopup dismissAll];
+            if (hex) { [ws.navigationController popViewControllerAnimated:YES]; return; }
+            [MeshPopup confirm:L(@"Not added") message:error action:L(@"OK") destructive:NO handler:nil];
+        }];
+        return;
+    }
     NSString *hex = [[MeshSession shared] addContact:self.keyField.text name:_nameField.text];
     if (hex) {
         [self.navigationController popViewControllerAnimated:YES];
