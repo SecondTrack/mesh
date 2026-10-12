@@ -1,9 +1,0 @@
-Package: de.mesh.ios
-Name: Mesh
-Version: 0.1.0
-Architecture: iphoneos-arm
-Description: Verschluesselter Nostr-Messenger fuer iPod touch 3G/4G und iPhone (iOS 5.0-6.1, ARMv7).
-Maintainer: Second Track
-Author: Second Track
-Section: Messaging
-Depends: firmware (>= 5.0)
