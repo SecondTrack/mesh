@@ -10,15 +10,20 @@ static NSString *idOf(NSString *code) {
 }
 
 @implementation MeshSplitCode {
-    NSMutableDictionary *_got;   // id -> @{@1: stück, @2: stück}
+    NSMutableDictionary *_got;   // id -> @{@n: stück}
 }
 
-+ (NSArray *)partsOf:(NSString *)code {
-    if (!code.length) return nil;
-    NSUInteger half = (code.length + 1) / 2;
-    NSString *i = idOf(code);
-    return @[[NSString stringWithFormat:@"%@1/2:%@:%@", kPrefix, i, [code substringToIndex:half]],
-             [NSString stringWithFormat:@"%@2/2:%@:%@", kPrefix, i, [code substringFromIndex:half]]];
++ (NSArray *)partsOf:(NSString *)code { return [self partsOf:code count:MESH_SPLIT_PARTS]; }
+
++ (NSArray *)partsOf:(NSString *)code count:(NSUInteger)k {
+    if (!code.length || k < 1 || k > 9) return nil;
+    NSString *i = idOf(code); NSMutableArray *out = [NSMutableArray array];
+    NSUInteger len = code.length, step = (len + k - 1) / k;
+    for (NSUInteger n = 0; n < k; n++) {
+        NSUInteger a = MIN(len, n * step), b = MIN(len, a + step);
+        [out addObject:[NSString stringWithFormat:@"%@%lu/%lu:%@:%@", kPrefix, (unsigned long)n + 1, (unsigned long)k, i, [code substringWithRange:NSMakeRange(a, b - a)]]];
+    }
+    return out;
 }
 
 + (BOOL)isPart:(NSString *)s { return [s hasPrefix:kPrefix]; }
@@ -27,15 +32,20 @@ static NSString *idOf(NSString *code) {
     if (![MeshSplitCode isPart:part]) return nil;
     NSArray *f = [[part substringFromIndex:kPrefix.length] componentsSeparatedByString:@":"];
     if (f.count < 3) return nil;
-    NSInteger n = [f[0] hasPrefix:@"1/"] ? 1 : ([f[0] hasPrefix:@"2/"] ? 2 : 0);
+    NSArray *nk = [f[0] componentsSeparatedByString:@"/"];
+    if (nk.count != 2) return nil;
+    NSInteger n = [nk[0] integerValue], k = [nk[1] integerValue];
     NSString *i = f[1];
-    if (!n || i.length != 6) return nil;
+    if (k < 1 || k > 9 || n < 1 || n > k || i.length != 6) return nil;
     NSString *piece = [[f subarrayWithRange:NSMakeRange(2, f.count - 2)] componentsJoinedByString:@":"];   // Stück darf ":" enthalten
     if (!_got) _got = [NSMutableDictionary dictionary];
-    NSMutableDictionary *e = _got[i] ?: [NSMutableDictionary dictionary];
-    e[@(n)] = piece; _got[i] = e; _lastPart = n;
-    if (!e[@1] || !e[@2]) return nil;
-    NSString *code = [e[@1] stringByAppendingString:e[@2]];
+    NSString *key = [NSString stringWithFormat:@"%@/%ld", i, (long)k];
+    NSMutableDictionary *e = _got[key] ?: [NSMutableDictionary dictionary];
+    e[@(n)] = piece; _got[key] = e; _total = k;
+    NSMutableArray *miss = [NSMutableArray array]; NSMutableString *code = [NSMutableString string];
+    for (NSInteger x = 1; x <= k; x++) { if (e[@(x)]) [code appendString:e[@(x)]]; else [miss addObject:@(x)]; }
+    _missing = miss;
+    if (miss.count) return nil;
     return [idOf(code) isEqualToString:i] ? code : nil;   // nur, wenn die Teile wirklich zusammenpassen
 }
 @end

@@ -114,9 +114,9 @@
         if (!_split) _split = [[MeshSplitCode alloc] init];
         NSString *full = [_split add:payload];
         if (!full) {
-            NSInteger n = _split.lastPart;
+            NSArray *miss = _split.missing; NSInteger k = _split.total;
             dispatch_async(dispatch_get_main_queue(), ^{
-                _hint.text = n == 1 ? L(@"Part 1/2 ✓ – now show part 2") : L(@"Part 2/2 ✓ – now show part 1");
+                _hint.text = LF(@"%ld of %ld parts ✓ – now show part %@", (long)(k - (NSInteger)miss.count), (long)k, [miss componentsJoinedByString:@", "]);
                 _hint.textColor = [MeshTheme accent];
             });
             return;

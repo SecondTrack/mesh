@@ -28,8 +28,9 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     UIView *_full;               // Vollbild-Code, solange offen
     CGFloat _brightness;         // Bildschirmhelligkeit vor der Vollbildansicht
     BOOL _single;                // ein voller Code (für Android) statt zwei Teilen (iPod ↔ iPod)
-    NSInteger _part;             // gezeigter Teil 0/1 im geteilten Modus
+    NSInteger _part;             // gezeigter Teil (0 … MESH_SPLIT_PARTS-1) im geteilten Modus
     UILabel *_partBadge, *_hint;
+    BOOL _frozen;                // nach dem ersten Antippen bleibt der Code stehen (Teile passen in jeder Reihenfolge)
 }
 
 - (void)loadView {
@@ -95,6 +96,7 @@ static const CGFloat kRing = 5, kRingRadius = 26;
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    _frozen = NO; _part = 0;
     [self refresh];
     _timer = [NSTimer scheduledTimerWithTimeInterval:kRefresh target:self selector:@selector(refresh) userInfo:nil repeats:YES];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(stop) name:MeshWillLockNotification object:nil];
@@ -146,11 +148,12 @@ static const CGFloat kRing = 5, kRingRadius = 26;
 // Geteilter Modus: Antippen wechselt zwischen Teil 1 und 2. Voller Code: Antippen vergrößert wie bisher.
 - (void)tapCode {
     if (_single) { [self showFull]; return; }
-    _part = 1 - _part;
+    _part = (_part + 1) % MESH_SPLIT_PARTS;
+    if (!_frozen) { _frozen = YES; [_ring removeAllAnimations]; _ring.strokeEnd = 1; }   // Countdown aus: Code steht
     [self drawCode];
 }
 - (void)toggleMode {
-    _single = !_single; _part = 0;
+    _single = !_single; _part = 0; _frozen = NO;
     [[NSUserDefaults standardUserDefaults] setBool:_single forKey:@"meshQRSingle"];
     [self drawCode];
 }
@@ -160,13 +163,13 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     // Reines Schwarz auf Weiß: der stärkste Kontrast für alte Kameras ohne Autofokus.
     _qr.image = [MeshQR imageForString:s sizePx:_qrSize module:[UIColor blackColor] background:[UIColor whiteColor]];
     _partBadge.hidden = _single;
-    _partBadge.text = _part ? @"2/2" : @"1/2";
-    _hint.text = _single ? L(@"One code for Android · tap here for two iPod codes")
-                         : L(@"Tap the code for part 2 · Android? Tap here");
+    _partBadge.text = [NSString stringWithFormat:@"%ld/%d", (long)_part + 1, MESH_SPLIT_PARTS];
+    _hint.text = _single ? L(@"One code for Android · tap here for iPod codes")
+                         : L(@"Tap the code for the next part · Android? Tap here");
 }
 
 - (void)refresh {
-    if (!_single && _part == 1) return;   // Teil 2 bleibt stehen, bis er gescannt ist (sonst passt er nicht mehr zu Teil 1)
+    if (!_single && _frozen && _code) return;   // geteilt und schon durchgeblättert: gleicher Code, egal mit welchem Teil der Scanner anfängt
     NSString *code = [[MeshSession shared] myContactCode];
     if (!code) return;
     _code = code;

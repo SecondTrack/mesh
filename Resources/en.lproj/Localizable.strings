@@ -357,7 +357,6 @@
 "Starting Tor … %d%%" = "Starting Tor … %d%%";
 
 /* Geteilter QR-Code (iPod) */
-"One code for Android · tap here for two iPod codes" = "One code for Android · tap here for two iPod codes";
-"Tap the code for part 2 · Android? Tap here" = "Tap the code for part 2 · Android? Tap here";
-"Part 1/2 ✓ – now show part 2" = "Part 1/2 ✓ – now show part 2";
-"Part 2/2 ✓ – now show part 1" = "Part 2/2 ✓ – now show part 1";
+"One code for Android · tap here for iPod codes" = "One code for Android · tap here for iPod codes";
+"Tap the code for the next part · Android? Tap here" = "Tap the code for the next part · Android? Tap here";
+"%ld of %ld parts ✓ – now show part %@" = "%ld of %ld parts ✓ – now show part %@";
