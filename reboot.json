@@ -1,8 +1,8 @@
 {
   "id": "mesh",
   "name": "Mesh",
-  "short": "Verschlüsselter Messenger ohne Telefonnummer – über das Tor-Netzwerk",
-  "category": "Kommunikation",
+  "short": "Encrypted messenger without a phone number – over the Tor network",
+  "category": "Communication",
   "status": "beta",
   "ios": [
     "5.1.1",
@@ -13,5 +13,26 @@
   "repo": "SecondTrack/mesh",
   "requires": "",
   "license": "GPL-3.0",
-  "install": "GitHub-Release: neuestes Release, Anhang *.deb"
+  "install": "GitHub release: latest release, *.deb asset",
+  "bundle": "de.mesh.ios",
+  "text": "Decentralized, encrypted messenger over Nostr and Tor. Anonymous, no phone number, no central server – chats, voice messages and pictures.",
+  "features": [
+    "Chats without a phone number – just a key",
+    "End-to-end encrypted, database encrypted on the device",
+    "Voice messages and pictures",
+    "Runs over Tor – no central server",
+    "PIN lock"
+  ],
+  "icon": "https://raw.githubusercontent.com/SecondTrack/mesh/main/Resources/Icon@2x.png",
+  "private": false,
+  "short_de": "Verschlüsselter Messenger ohne Telefonnummer – über das Tor-Netzwerk",
+  "category_de": "Kommunikation",
+  "text_de": "Dezentraler, verschlüsselter Messenger über Nostr und Tor. Anonym, ohne Telefonnummer, ohne zentralen Server – Chats, Sprachnachrichten und Bilder.",
+  "features_de": [
+    "Chats ohne Telefonnummer – nur ein Schlüssel",
+    "Ende-zu-Ende-verschlüsselt, Datenbank auf dem Gerät verschlüsselt",
+    "Sprachnachrichten und Bilder",
+    "Läuft über Tor – kein zentraler Server",
+    "Sperre mit PIN"
+  ]
 }

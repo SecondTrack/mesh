@@ -1,112 +1,108 @@
 # Mesh
 
-**Verschlüsselter Messenger ohne Telefonnummer – über das Tor-Netzwerk**
+**Encrypted messenger without a phone number – over the Tor network**
 
-Dezentraler, verschlüsselter Messenger über Nostr und Tor. Anonym, ohne Telefonnummer, ohne zentralen Server – Chats, Sprachnachrichten und Bilder.
+Decentralized, encrypted messenger over Nostr and Tor. Anonymous, no phone number, no central server – chats, voice messages and pictures.
 
-## Das kann die App
+## Features
 
-- Chats ohne Telefonnummer – nur ein Schlüssel
-- Ende-zu-Ende-verschlüsselt, Datenbank auf dem Gerät verschlüsselt
-- Sprachnachrichten und Bilder
-- Läuft über Tor – kein zentraler Server
-- Sperre mit PIN
+- Chats without a phone number – just a key
+- End-to-end encrypted, database encrypted on the device
+- Voice messages and pictures
+- Runs over Tor – no central server
+- PIN lock
 
-## Läuft auf
+## Runs on
 
-iOS 5.1.1, iOS 6.1.6 · gejailbreakter iPod touch
+iOS 6.1.6 · jailbroken iPod touch
 
-## Installieren
+## Install
 
-Am einfachsten über den **[Reboot Appstore](https://github.com/SecondTrack/reboot)** direkt auf dem iPod.
-Von Hand: das `.deb` aus dem [neuesten Release](https://github.com/SecondTrack/mesh/releases/latest) laden und mit `dpkg -i` installieren, danach `uicache`.
+The easiest way is the **[Reboot App Store](https://github.com/SecondTrack/reboot)** right on the iPod.
+By hand: download the `.deb` from the [latest release](https://github.com/SecondTrack/mesh/releases/latest), install it with `dpkg -i`, then run `uicache`.
 
-## Selbst bauen
+## Build it yourself
 
-Mit [Theos](https://theos.dev) (iOS-SDK mit armv7):
+With [Theos](https://theos.dev) (iOS SDK with armv7):
 
 ```sh
 make package
 ```
 
-## Teil von Reboot
+## Part of Reboot
 
-Diese App gehört zu **Reboot** von [Second Track](https://secondtrack.de) – neue Apps für alte iPods.
-Alle Apps: [SecondTrack](https://github.com/SecondTrack).
+This app is part of **Reboot** by **Second Track** – new apps for old iPods.
+All apps: [SecondTrack](https://github.com/SecondTrack).
 
-## Lizenz
+## License
 
-GPL-3.0 – siehe [LICENSE](LICENSE). Mitgelieferte Bibliotheken unter `vendor/` behalten ihre eigenen Lizenzen.
-Nicht mit Apple verbunden. iPod ist eine Marke von Apple Inc.
+GPL-3.0 – see [LICENSE](LICENSE). Bundled libraries under `vendor/` keep their own licenses.
+Not affiliated with Apple. iPod is a trademark of Apple Inc.
 
 ---
 
-# Mesh für alte iPods
+# Mesh for old iPods
 
-Verschlüsselter Nostr-Messenger für jailbroken iPod touch und iPhone mit iOS 4.2 bis 6.1.
-Gegenstück zur Android-App Mesh: gleiches Design, gleiches Nachrichtenformat, untereinander kompatibel.
+Encrypted Nostr messenger for jailbroken iPod touch and iPhone with iOS 4.2 to 6.1.
+Counterpart to the Mesh Android app: same design, same message format, compatible with each other.
 
-WhatsApp, Signal und Telegram sperren alte Clients serverseitig aus. Nostr-Relays tun das nicht:
-Ein eigener Client funktioniert, solange er das Protokoll spricht.
+WhatsApp, Signal and Telegram lock out old clients on the server side. Nostr relays don't:
+your own client keeps working as long as it speaks the protocol.
 
-## Stand
+## Status
 
-| Gerät         | iOS   | Status |
+| Device        | iOS   | Status |
 |---------------|-------|--------|
-| iPod touch 4G | 6.1.6 | läuft  |
-| iPod touch 3G | 5.1.1 | dasselbe Paket, Gerätetest offen |
-| iPod touch 2G | 4.2.1 | Code bereit, braucht ARMv6-Toolchain (docs/PORTING.md) |
+| iPod touch 4G | 6.1.6 | works  |
+| iPod touch 3G | 5.1.1 | same package, device test pending |
+| iPod touch 2G | 4.2.1 | code ready, needs an ARMv6 toolchain (docs/PORTING.md) |
 
-Funktionen: eigene secp256k1-Identität ohne Account, NIP-04-verschlüsselte Direktnachrichten,
-Bilder und Sprachnachrichten (mit Stimmeffekten), QR-Code zum Teilen und Scannen, Safety-Number
-zum Verifizieren von Kontakten, Entsperr-Code mit Sperrzeit und Gerätebindung, verschlüsselte
-Datenbank, TLS mit Zertifikatsprüfung. Sicherheitsmodell: docs/ARCHITECTURE.md.
+Features: your own secp256k1 identity without an account, NIP-04 encrypted direct messages,
+pictures and voice messages (with voice effects), QR code for sharing and scanning, safety number
+for verifying contacts, unlock code with lockout and device binding, encrypted
+database, TLS with certificate checks. Security model: docs/ARCHITECTURE.md.
 
-Nicht enthalten: eigener Hidden-Service wie bei Android. Ein optionaler Tor-Transport ist vorbereitet
-(`MESH_USE_TOR`), aber noch nicht am Gerät erprobt.
+## Build
 
-## Bauen
-
-Voraussetzungen: [Theos](https://theos.dev), iOS-7.1-SDK unter `$THEOS/sdks/`, die gevendorten
-Bibliotheken unter `vendor/` (Anleitung in `vendor/README.md`).
+Requirements: [Theos](https://theos.dev), iOS 7.1 SDK under `$THEOS/sdks/`, the vendored
+libraries under `vendor/` (instructions in `vendor/README.md`).
 
 ```sh
 export THEOS=~/theos
-make package                    # Release-Build, ohne Log
-make package FINALPACKAGE=0     # Debug-Build, schreibt Documents/mesh.log (nur Testgeräte)
+make package                    # release build, no log
+make package FINALPACKAGE=0     # debug build, writes Documents/mesh.log (test devices only)
 ```
 
-Wenn `xcrun` mit einer arm64e-Meldung abbricht, ist ein altes Xcode ausgewählt:
+If `xcrun` aborts with an arm64e message, an old Xcode is selected:
 `export DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
 
-Installieren: `.deb` aus `packages/` per SSH auf das Gerät kopieren, `dpkg -i`, dann `uicache`.
+Install: copy the `.deb` from `packages/` to the device via SSH, `dpkg -i`, then `uicache`.
 
-## Testen
+## Tests
 
 ```sh
-tests/run.sh                    # alle Mac-Tests, ca. 30 s
-tools/dev/build.sh              # Gegenstelle (nostrbot), Einzelversand, Relay-Abfrage
+tests/run.sh                    # all Mac tests, about 30 s
+tools/dev/build.sh              # counterpart (nostrbot), single send, relay query
 ```
 
-Für die Krypto- und Vault-Tests: `brew install secp256k1`.
+For the crypto and vault tests: `brew install secp256k1`.
 
-## Aufbau
+## Layout
 
-Schichten, Threads, Datenfluss und die Regeln für die verschiedenen iOS-Versionen:
+Layers, threads, data flow and the rules for the different iOS versions:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```
-mesh/        App-Code, eine Schicht je Ordner
-tests/       Mac-Tests (tests/run.sh)
-tools/       selftest, Entwicklerwerkzeuge (dev/), Icon-Erzeugung (assets/)
+mesh/        app code, one layer per folder
+tests/       Mac tests (tests/run.sh)
+tools/       selftest, developer tools (dev/), icon generation (assets/)
 vendor/      secp256k1, mbedTLS, qrcodegen, quirc
-docs/        Architektur und Sicherheitsmodell, Portierung, Design-Vorschau
+docs/        architecture and security model, porting, design preview
 ```
 
-## Offene Punkte
+## Open items
 
-- Gerätetests auf touch 3G und 4G (Liste in docs/PORTING.md), TLS-Probe mit mbedTLS 3.6.7 am Gerät.
-- touch 2G: ARMv6-Toolchain und Bibliotheken (docs/PORTING.md).
-- Tor-Transport: libtor für ARMv7 bauen und am Gerät erproben (`MESH_USE_TOR`).
-- NIP-44 statt NIP-04 — erst zusammen mit der Android-App, sonst können beide nicht mehr reden.
-- Metadaten: Pubkeys und Zeitstempel liegen unverschlüsselt in der Datenbank.
+- Device tests on touch 3G and 4G (list in docs/PORTING.md), TLS probe with mbedTLS 3.6.7 on the device.
+- touch 2G: ARMv6 toolchain and libraries (docs/PORTING.md).
+- NIP-44 instead of NIP-04 – only together with the Android app, otherwise the two can no longer talk.
+- Metadata: pubkeys and timestamps are stored unencrypted in the database.
