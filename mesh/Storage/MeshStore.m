@@ -465,6 +465,18 @@ _Static_assert(MeshPayloadText == 0 && MeshPayloadNotice == 4 && MeshPayloadCont
     return out;
 }
 
+// Nur die neuesten `limit` Nachrichten: ein langer Chat öffnet sonst erst, wenn alles entschlüsselt ist
+- (NSArray *)messagesForChat:(NSString *)pubkeyHex limit:(NSUInteger)limit {
+    NSMutableArray *out = [NSMutableArray array];
+    sqlite3_stmt *st = [self prepare:"SELECT " MESSAGE_COLUMNS " FROM messages WHERE chat=? ORDER BY ts DESC, rowid DESC LIMIT ?"];
+    if (!st) return out;
+    bindText(st, 1, pubkeyHex);
+    sqlite3_bind_int64(st, 2, (sqlite3_int64)limit);
+    while (sqlite3_step(st) == SQLITE_ROW) [out insertObject:[self messageFromRow:st chat:pubkeyHex] atIndex:0];
+    sqlite3_finalize(st);
+    return out;
+}
+
 - (MeshMessage *)messageWithKey:(NSString *)key chat:(NSString *)chat {
     if (!key.length) return nil;
     sqlite3_stmt *st = [self prepare:"SELECT " MESSAGE_COLUMNS " FROM messages WHERE chat=?1 AND (cmid=?2 OR event_id=?2) LIMIT 1"];

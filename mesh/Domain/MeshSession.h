@@ -128,6 +128,7 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 - (void)setVerified:(BOOL)verified for:(NSString *)peerHex;
 - (NSArray *)chatList;                                     // NSArray<MeshChat>, neueste zuerst
 - (NSArray *)messagesWith:(NSString *)peerHex;             // NSArray<MeshMessage>, älteste zuerst
+- (NSArray *)messagesWith:(NSString *)peerHex limit:(NSUInteger)limit;   // nur die neuesten, älteste zuerst
 - (NSData *)mediaOf:(MeshMessage *)message;                // JPEG, AAC bzw. Datei, nil bei Text
 - (MeshPayload *)payloadOf:(MeshMessage *)message;         // vollständig (Dateiname, Kontaktkarte)
 - (MeshMessage *)message:(NSString *)key in:(NSString *)peerHex;   // per cmid/Event-ID, z.B. für Zitate

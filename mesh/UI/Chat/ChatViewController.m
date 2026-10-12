@@ -39,6 +39,10 @@
     NSCache *_thumbCache;               // rowId -> Vorschaubild eines Videos (NSNull: keins möglich)
     NSMutableSet *_thumbPending;        // rowIds, deren Vorschaubild gerade entsteht
     NSMutableDictionary *_quotes;       // cmid -> @[Autor, Zeile] der zitierten Nachricht, je Neuladen
+    NSUInteger _limit;                  // so viele der neuesten Nachrichten sind geladen (wächst beim Hochscrollen)
+    NSMutableDictionary *_heights;      // Zeilenhöhe je Nachricht (rowId, Reaktionen, Art, Breite) – Messen kostet am iPod viel
+    BOOL _loadingOlder;
+    int _acceptedState;                 // 0 unbekannt, 1 nein, 2 ja – ändert sich die Annahme, ändern sich Kontaktkarten-Höhen
 
     UITableView *_table;
     MeshChatInputBar *_inputBar;
@@ -491,7 +495,11 @@
     [self updateTitle];
     [self updateBadge];   // der Kontakt kann den Timer geändert haben
     BOOL wasAtBottom = [self nearBottom];
-    _messages = [[MeshSession shared] messagesWith:_peerHex];
+    if (!_limit) _limit = 80;
+    if (!_heights) _heights = [NSMutableDictionary dictionary];
+    int acc = [[MeshSession shared] isAccepted:_peerHex] ? 2 : 1;
+    if (acc != _acceptedState) { [_heights removeAllObjects]; _acceptedState = acc; }
+    _messages = [[MeshSession shared] messagesWith:_peerHex limit:_limit];
     [_quotes removeAllObjects];
     [_table reloadData];
     if (wasAtBottom) [self scrollToBottom];   // nur ans Ende, wenn man eh unten war (kein Zurückspringen)
@@ -503,6 +511,19 @@
     if (t.contentSize.height <= t.bounds.size.height) return YES;   // passt komplett rein
     CGFloat dist = t.contentSize.height - (t.contentOffset.y + t.bounds.size.height);
     return dist < 90;
+}
+
+// Ganz oben angekommen: die nächsten 80 älteren Nachrichten nachladen, die Ansicht bleibt an derselben Stelle
+- (void)scrollViewDidScroll:(UIScrollView *)sv {
+    if (sv != _table || _loadingOlder || sv.contentOffset.y > 40 || _messages.count < _limit) return;
+    _loadingOlder = YES;
+    CGFloat oldH = sv.contentSize.height, oldY = sv.contentOffset.y;
+    _limit += 80;
+    _messages = [[MeshSession shared] messagesWith:_peerHex limit:_limit];
+    [_table reloadData];
+    [_table layoutIfNeeded];
+    sv.contentOffset = CGPointMake(0, oldY + (sv.contentSize.height - oldH));
+    _loadingOlder = NO;
 }
 
 - (void)scrollToBottom {
@@ -583,8 +604,17 @@ static NSString *reactionsOf(MeshMessage *m) {
 
 - (CGFloat)tableView:(UITableView *)t heightForRowAtIndexPath:(NSIndexPath *)ip {
     MeshMessage *m = _messages[ip.row];
+    NSString *hk = [NSString stringWithFormat:@"%lld|%d|%d|%@|%.0f|%d", m.rowId, (int)m.kind, m.status, reactionsOf(m), t.bounds.size.width, m.width];
+    NSNumber *known = _heights[hk];
+    if (known) return known.floatValue;
+    CGFloat h = [self measureRow:m width:t.bounds.size.width];
+    _heights[hk] = @(h);
+    return h;
+}
+
+- (CGFloat)measureRow:(MeshMessage *)m width:(CGFloat)tableWidth {
     CGSize size; NSString *text = nil, *qa = nil, *qt = nil;
-    CGFloat w = t.bounds.size.width, base;
+    CGFloat w = tableWidth, base;
     switch ([self bubbleFor:m imageSize:&size text:&text]) {
         case MeshPayloadNotice: return [MeshNoticeCell heightForNotice:text width:w];
         case MeshPayloadVoice:  base = [MeshBubbleCell heightForVoice]; break;

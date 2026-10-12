@@ -186,6 +186,7 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
 }
 
 - (NSArray *)messagesWith:(NSString *)peerHex { return [self.active.store messagesForChat:peerHex]; }
+- (NSArray *)messagesWith:(NSString *)peerHex limit:(NSUInteger)limit { return [self.active.store messagesForChat:peerHex limit:limit]; }
 
 - (NSData *)mediaOf:(MeshMessage *)m {
     if (m.kind != MeshPayloadImage && m.kind != MeshPayloadVoice && m.kind != MeshPayloadFile) return nil;

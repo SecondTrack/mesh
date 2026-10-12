@@ -55,6 +55,7 @@
 - (void)setImageWidth:(int)width height:(int)height ofMessage:(long long)rowId;   // aus dem Dateikopf, für Zeilenhöhen
 - (BOOL)markDelivered:(NSString *)eventId;   // Relay-OK → status=1, startet "Ab Gesehen"-Uhren (YES = Status geändert)
 - (NSArray *)messagesForChat:(NSString *)pubkeyHex;   // MeshMessage*, aufsteigend nach ts
+- (NSArray *)messagesForChat:(NSString *)pubkeyHex limit:(NSUInteger)limit;   // nur die neuesten, aufsteigend
 - (NSString *)contentOfMessage:(long long)rowId;          // vollständiger Inhalt (inkl. Medien)
 - (NSArray *)chatList;                                 // MeshChat*, letzte Nachricht je Kontakt
 @end
