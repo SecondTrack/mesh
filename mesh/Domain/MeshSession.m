@@ -51,6 +51,7 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 
 @implementation MeshSession {
     NSTimer *_expiryTimer;         // nächste selbstlöschende Nachricht
+    BOOL _profileRepublished;      // eigenes Profil (mit Bild) einmal je App-Start neu veröffentlicht
     NSString *_openChat;
     MeshInboxWatcher *_watcher;    // nur gesperrt im Hintergrund
     NSSet *_profileAuthors;        // wessen Profile das Abo gerade anfragt
@@ -210,16 +211,20 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 
 - (void)saveProfile:(MeshProfile *)profile {
     [_active.store saveProfile:profile];
-    NSString *name = profile.name, *about = profile.about;
-    // NIP-01 kind-0: Name/Über ins Netz (Bild bleibt lokal: base64 im Relay wäre zu groß).
-    if (_active.keys) {
-        NSDictionary *meta = @{ @"name": (name ?: @""), @"about": (about ?: @"") };
-        NSData *j = [MeshJSON dataWithObject:meta];
-        MeshEvent *e = [MeshEvent kind:0 content:[[NSString alloc] initWithData:j encoding:NSUTF8StringEncoding] tags:@[]];
-        if ([e signWithKeys:_active.keys]) [_pool publish:e];
-    }
+    [self publishProfile:profile];
     [self notify:MeshMessagesChangedNotification];
     [self notify:MeshProfilesChangedNotification];
+}
+
+// NIP-01 kind-0: Name, Über und Bild ins Netz. Bild wie in der Android-App als Base64-JPEG (Avatar
+// 256 px, ein paar Dutzend KB); größer als kMaxProfilePicture geht es nicht mit, Name/Über schon.
+- (void)publishProfile:(MeshProfile *)profile {
+    if (!_active.keys || !profile) return;
+    NSMutableDictionary *meta = [@{ @"name": (profile.name ?: @""), @"display_name": (profile.name ?: @""), @"about": (profile.about ?: @"") } mutableCopy];
+    if (profile.picture.length && profile.picture.length <= kMaxProfilePicture) meta[@"picture"] = profile.picture;
+    NSData *j = [MeshJSON dataWithObject:meta];
+    MeshEvent *e = [MeshEvent kind:0 content:[[NSString alloc] initWithData:j encoding:NSUTF8StringEncoding] tags:@[]];
+    if ([e signWithKeys:_active.keys]) [_pool publish:e];
 }
 
 #pragma mark - Verbindung
@@ -311,6 +316,14 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 
 // DMs an alle eigenen Identitäten + Profile ihrer Kontakte. Gesperrt gibt es keine.
 - (NSDictionary *)subscriptionsForPool:(MeshRelayPool *)pool {
+    // Erste Verbindung nach dem Start: eigenes Profil einmal neu senden (ältere Versionen schickten kein Bild mit)
+    if (!_profileRepublished && _active.keys) {
+        _profileRepublished = YES;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            MeshProfile *p = [self profile];
+            if (p.name.length || p.picture.length || p.about.length) [self publishProfile:p];
+        });
+    }
     NSMutableArray *mine = [NSMutableArray array], *contacts = [NSMutableArray array];
     long long newest = LLONG_MAX;
     for (MeshIdentity *i in [self unlockedIdentities]) {
@@ -384,9 +397,13 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
     name = MeshTruncate(name, kMaxProfileName);
     if (pic.length > kMaxProfilePicture) pic = nil;
     BOOL changed = NO;
-    for (MeshIdentity *i in [self unlockedIdentities])
+    for (MeshIdentity *i in [self unlockedIdentities]) {
         // Anfragen: nur der Name, kein Bild (bis zu 30 Fremde à 300 KB); nach dem Annehmen kommt es neu.
-        changed |= [i.store setContactProfile:event.pubkey pname:name pic:([i.store isAccepted:event.pubkey] ? pic : nil) createdAt:event.createdAt];
+        BOOL accepted = [i.store isAccepted:event.pubkey];
+        // Bild fehlt noch (z.B. Profil kam an, als der Kontakt noch eine Anfrage war): gleiches Event nochmal übernehmen
+        BOOL fill = accepted && pic.length && ![i.store picForContact:event.pubkey].length;
+        changed |= [i.store setContactProfile:event.pubkey pname:name pic:(accepted ? pic : nil) createdAt:event.createdAt sameAgain:fill];
+    }
     if (!changed) return;
     [self notify:MeshMessagesChangedNotification];
     [self notify:MeshProfilesChangedNotification];

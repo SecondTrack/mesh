@@ -41,6 +41,7 @@
 // Profil eines Kontakts aus kind-0 (Name, Bild). Den Anzeigenamen bildet MeshSession.
 - (void)forgetProfileTimeOf:(NSString *)pubkeyHex;   // nächstes Profil gilt als neuer (nach dem Annehmen)
 - (BOOL)setContactProfile:(NSString *)pubkeyHex pname:(NSString *)pname pic:(NSString *)pic createdAt:(long long)ts;   // nur wenn neuer
+- (BOOL)setContactProfile:(NSString *)pubkeyHex pname:(NSString *)pname pic:(NSString *)pic createdAt:(long long)ts sameAgain:(BOOL)same;   // same: auch bei gleichem Zeitstempel
 - (NSString *)profileNameForContact:(NSString *)pubkeyHex;   // aus kind-0, nil = keiner
 - (BOOL)isContact:(NSString *)pubkeyHex;
 

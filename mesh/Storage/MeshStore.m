@@ -313,10 +313,14 @@
 }
 
 - (BOOL)setContactProfile:(NSString *)pubkeyHex pname:(NSString *)pname pic:(NSString *)pic createdAt:(long long)ts {
+    return [self setContactProfile:pubkeyHex pname:pname pic:pic createdAt:ts sameAgain:NO];
+}
+- (BOOL)setContactProfile:(NSString *)pubkeyHex pname:(NSString *)pname pic:(NSString *)pic createdAt:(long long)ts sameAgain:(BOOL)same {
     NSString *n = [self seal:pname context:contactContext("pname", pubkeyHex)];
     NSString *p = [self seal:pic context:contactContext("pic", pubkeyHex)];
     if (!n || !p) return NO;
-    sqlite3_stmt *st = [self prepare:"UPDATE contacts SET pname=?, pic=?, pts=? WHERE pubkey=? AND pts < ?"];
+    sqlite3_stmt *st = [self prepare:same ? "UPDATE contacts SET pname=?, pic=?, pts=? WHERE pubkey=? AND pts <= ?"
+                                          : "UPDATE contacts SET pname=?, pic=?, pts=? WHERE pubkey=? AND pts < ?"];
     if (!st) return NO;
     bindText(st, 1, n); bindText(st, 2, p); sqlite3_bind_int64(st, 3, ts);
     bindText(st, 4, pubkeyHex); sqlite3_bind_int64(st, 5, ts);
