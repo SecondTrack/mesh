@@ -89,11 +89,10 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     [self.view addSubview:_partBadge];
     y += outer + 10;
 
-    _single = [[NSUserDefaults standardUserDefaults] boolForKey:@"meshQRSingle"];
+    _single = YES;   // nur der Code, ohne Umschalten (geteilte Teile kann der Scanner weiter lesen)
     _hint = [MeshControls labelWithFrame:CGRectMake(12, y - 2, W - 24, 22) font:[MeshTheme timeFont] color:[MeshTheme muted]];
     _hint.textAlignment = NSTextAlignmentCenter; _hint.adjustsFontSizeToFitWidth = YES; _hint.minimumFontSize = 9;
     _hint.userInteractionEnabled = YES;
-    [_hint addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleMode)]];
     [self.view addSubview:_hint];
     y += 28;
 
@@ -176,11 +175,6 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     _part = (_part + 1) % MESH_SPLIT_PARTS;
     [self drawCode];
 }
-- (void)toggleMode {
-    _single = !_single; _part = 0; _frozen = NO;
-    [[NSUserDefaults standardUserDefaults] setBool:_single forKey:@"meshQRSingle"];
-    [self drawCode];
-}
 - (void)drawCode {
     if (!_code) return;
     NSString *s = _single ? _code : [MeshSplitCode partsOf:_code][_part];
@@ -192,8 +186,7 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     }
     _partBadge.hidden = _single;
     _partBadge.text = [NSString stringWithFormat:@"%ld/%d", (long)_part + 1, MESH_SPLIT_PARTS];
-    _hint.text = _single ? L(@"One code for Android · tap here for iPod codes")
-                         : L(@"Tap the code to show it · Android? Tap here");
+    _hint.text = nil;
 }
 
 - (void)refresh {

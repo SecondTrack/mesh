@@ -69,7 +69,6 @@
 
 // Add contact
 "Add contact" = "Add contact";
-"⌗  Scan QR" = "⌗  Scan QR";
 "NAME (OPTIONAL)" = "NAME (OPTIONAL)";
 "Display name" = "Display name";
 "Add" = "Add";
@@ -114,8 +113,6 @@
 // Audio lab
 "Record" = "Record";
 "Say a sentence, then turn the sliders." = "Say a sentence, then turn the sliders.";
-"▶ Original" = "▶ Original";
-"▶ Processed" = "▶ Processed";
 "Noise reduction" = "Noise reduction";
 "High-pass (low cut)" = "High-pass (low cut)";
 "Low-pass (high cut)" = "Low-pass (high cut)";
@@ -124,7 +121,6 @@
 "Set as default" = "Set as default";
 "Recording ready (%d s) — now test the sliders" = "Recording ready (%d s) — now test the sliders";
 "Recording empty — try again" = "Recording empty — try again";
-"⏹  Stop" = "⏹  Stop";
 "Recording … (max %d s)" = "Recording … (max %d s)";
 "Record first" = "Record first";
 "Applied — now active for all voice messages." = "Applied — now active for all voice messages.";
@@ -356,12 +352,10 @@
 "Starting Tor … %d%%" = "Starting Tor … %d%%";
 
 /* Geteilter QR-Code (iPod) */
-"One code for Android · tap here for iPod codes" = "One code for Android · tap here for iPod codes";
 "%ld of %ld parts ✓ – now show part %@" = "%ld of %ld parts ✓ – now show part %@";
 
 "First start: Tor is downloading the network once – this can take a few minutes." = "First start: Tor is downloading the network once – this can take a few minutes.";
 
-"Tap the code to show it · Android? Tap here" = "Tap the code to show it · Android? Tap here";
 "Part %ld of %d · tap for next" = "Part %ld of %d · tap for next";
 
 /* Kontakt per 4 Wörtern */
@@ -388,3 +382,7 @@
 
 "This video could not be checked safely and is not played." = "This video could not be checked safely and is not played.";
 "Tor is reading the network directory – about a minute on the iPod." = "Tor is reading the network directory – about a minute on the iPod.";
+"Original" = "Original";
+"Processed" = "Processed";
+"Stop" = "Stop";
+"Scan QR" = "Scan QR";

@@ -4,6 +4,7 @@
 #import "MeshPopup.h"
 #import "ChatViewController.h"
 #import "MeshTheme.h"
+#import "MeshGlyphs.h"
 #import "MeshPageHeader.h"
 #import "MeshSession.h"
 #import "QRScannerViewController.h"
@@ -37,7 +38,8 @@
 
     // QR scannen (füllt das npub-Feld), nur auf Geräten mit Kamera
     if ([MeshCaps hasCamera]) {
-        UIButton *scan = [MeshControls secondaryButtonWithFrame:CGRectMake(16, y, W - 32, 44) title:L(@"⌗  Scan QR") target:self action:@selector(tapScan)];
+        UIButton *scan = [MeshControls secondaryButtonWithFrame:CGRectMake(16, y, W - 32, 44) title:L(@"Scan QR") target:self action:@selector(tapScan)];
+        [MeshControls setIcon:[MeshGlyphs icon:@"scan" color:[MeshTheme accent] size:18] onButton:scan];
         scan.layer.borderColor = [MeshTheme accentDim].CGColor;
         [scan setTitleColor:[MeshTheme accent] forState:UIControlStateNormal];
         [self.view addSubview:scan];

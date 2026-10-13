@@ -69,7 +69,6 @@
 
 // Kontakt hinzufügen
 "Add contact" = "Kontakt hinzufügen";
-"⌗  Scan QR" = "⌗  QR scannen";
 "NAME (OPTIONAL)" = "NAME (OPTIONAL)";
 "Display name" = "Anzeigename";
 "Add" = "Hinzufügen";
@@ -114,8 +113,6 @@
 // Audio-Labor
 "Record" = "Aufnehmen";
 "Say a sentence, then turn the sliders." = "Sprich einen Satz ein, dann an den Reglern drehen.";
-"▶ Original" = "▶ Original";
-"▶ Processed" = "▶ Verarbeitet";
 "Noise reduction" = "Rauschunterdrückung";
 "High-pass (low cut)" = "Hochpass (Tiefen-Cut)";
 "Low-pass (high cut)" = "Tiefpass (Höhen-Cut)";
@@ -124,7 +121,6 @@
 "Set as default" = "Als Standard übernehmen";
 "Recording ready (%d s) — now test the sliders" = "Aufnahme bereit (%d s) — jetzt Regler testen";
 "Recording empty — try again" = "Aufnahme leer — nochmal";
-"⏹  Stop" = "⏹  Stop";
 "Recording … (max %d s)" = "Aufnahme läuft … (max %d s)";
 "Record first" = "Erst aufnehmen";
 "Applied — now active for all voice messages." = "Übernommen — gilt jetzt für alle Sprachnachrichten.";
@@ -356,12 +352,10 @@
 "Starting Tor … %d%%" = "Starte Tor … %d %%";
 
 /* Geteilter QR-Code (iPod) */
-"One code for Android · tap here for iPod codes" = "Ein Code für Android · hier tippen für iPod-Codes";
 "%ld of %ld parts ✓ – now show part %@" = "%ld von %ld Teilen ✓ – jetzt Teil %@ zeigen";
 
 "First start: Tor is downloading the network once – this can take a few minutes." = "Erster Start: Tor lädt einmalig das Netzwerk – das kann ein paar Minuten dauern.";
 
-"Tap the code to show it · Android? Tap here" = "Code antippen zum Zeigen · Android? Hier tippen";
 "Part %ld of %d · tap for next" = "Teil %ld von %d · tippen für weiter";
 
 /* Kontakt per 4 Wörtern */
@@ -388,3 +382,7 @@
 
 "This video could not be checked safely and is not played." = "Dieses Video ließ sich nicht sicher prüfen und wird nicht abgespielt.";
 "Tor is reading the network directory – about a minute on the iPod." = "Tor liest das Netzverzeichnis ein – am iPod etwa eine Minute.";
+"Original" = "Original";
+"Processed" = "Verarbeitet";
+"Stop" = "Stop";
+"Scan QR" = "QR scannen";

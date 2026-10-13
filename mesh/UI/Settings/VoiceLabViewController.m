@@ -1,6 +1,7 @@
 #import "VoiceLabViewController.h"
 #import "MeshScreen.h"
 #import "MeshTheme.h"
+#import "MeshGlyphs.h"
 #import "MeshPageHeader.h"
 #import "MeshPopup.h"
 #import "MeshL10n.h"
@@ -47,8 +48,10 @@ static const CGFloat kMargin = 16, kGap = 10;
 
     // Original und Bearbeitet nebeneinander
     CGFloat half = (inner - kGap) / 2;
-    UIButton *original = [MeshControls secondaryButtonWithFrame:CGRectMake(kMargin, y, half, 42) title:L(@"▶ Original") target:self action:@selector(playOriginal)];
-    UIButton *processed = [MeshControls secondaryButtonWithFrame:CGRectMake(kMargin + half + kGap, y, half, 42) title:L(@"▶ Processed") target:self action:@selector(playProcessed)];
+    UIButton *original = [MeshControls secondaryButtonWithFrame:CGRectMake(kMargin, y, half, 42) title:L(@"Original") target:self action:@selector(playOriginal)];
+    UIButton *processed = [MeshControls secondaryButtonWithFrame:CGRectMake(kMargin + half + kGap, y, half, 42) title:L(@"Processed") target:self action:@selector(playProcessed)];
+    for (UIButton *b in @[original, processed])
+        [MeshControls setIcon:[MeshGlyphs playPauseIcon:NO size:14 color:[MeshTheme ink]] onButton:b];
     processed.backgroundColor = [MeshTheme accentDim];
     [processed setTitleColor:[MeshTheme bg] forState:UIControlStateNormal];
     [_scroll addSubview:original];
@@ -109,6 +112,7 @@ static const CGFloat kMargin = 16, kGap = 10;
     if (_recording) {
         _recording = NO;
         [_recBtn setTitle:L(@"Record") forState:UIControlStateNormal];
+        [MeshControls setIcon:nil onButton:_recBtn];
         _recBtn.backgroundColor = [MeshTheme accent];
         MeshWipe(_raw);
         _raw = [_voice stopRawRecording];
@@ -119,7 +123,8 @@ static const CGFloat kMargin = 16, kGap = 10;
     }
     if (![_voice startRawRecording:kLabSeconds]) { _status.text = L(@"Microphone unavailable"); return; }
     _recording = YES;
-    [_recBtn setTitle:L(@"⏹  Stop") forState:UIControlStateNormal]; _recBtn.backgroundColor = [MeshTheme danger];
+    [_recBtn setTitle:L(@"Stop") forState:UIControlStateNormal];
+    [MeshControls setIcon:[MeshGlyphs stopIcon:14 color:[MeshTheme bg]] onButton:_recBtn]; _recBtn.backgroundColor = [MeshTheme danger];
     _status.text = LF(@"Recording … (max %d s)", (int)kLabSeconds);
 }
 
@@ -162,6 +167,7 @@ static const CGFloat kMargin = 16, kGap = 10;
         MeshWipe([_voice stopRawRecording]);
         _recording = NO;
         [_recBtn setTitle:L(@"Record") forState:UIControlStateNormal];
+        [MeshControls setIcon:nil onButton:_recBtn];
         _recBtn.backgroundColor = [MeshTheme accent];
     }
     MeshWipe(_raw);

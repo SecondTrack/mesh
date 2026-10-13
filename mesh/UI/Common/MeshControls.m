@@ -89,4 +89,13 @@
     return card;
 }
 
++ (void)setIcon:(UIImage *)icon onButton:(UIButton *)button {
+    [button setImage:icon forState:UIControlStateNormal];
+    [button setImage:icon forState:UIControlStateHighlighted];
+    button.adjustsImageWhenHighlighted = NO;
+    CGFloat g = icon ? 4 : 0;   // nil: Symbol weg, Titel wieder mittig
+    button.imageEdgeInsets = UIEdgeInsetsMake(0, -g, 0, g);
+    button.titleEdgeInsets = UIEdgeInsetsMake(0, g, 0, -g);
+}
+
 @end
