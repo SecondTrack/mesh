@@ -71,6 +71,7 @@
     if ((self = [super init])) {
         _peerHex = [peerHex copy];
         _imgCache = [[NSCache alloc] init]; _imgCache.countLimit = 12;
+        _imgCache.totalCostLimit = 16 * 1024 * 1024;   // dekodierte Pixel (w*h*4): fremde Clients dürfen bis 2048 px schicken
         _fileCache = [[NSCache alloc] init]; _fileCache.countLimit = 32;
         _thumbCache = [[NSCache alloc] init]; _thumbCache.countLimit = 24;
         _thumbPending = [NSMutableSet set];
@@ -380,26 +381,43 @@
     if (![self mayShowMediaOf:m]) return nil;
     *loading = YES;
     if ([_imgPending containsObject:k]) return nil;
-    [_imgPending addObject:k];
     NSData *jpeg = [[MeshSession shared] mediaOf:m];   // Store nur auf dem Main-Thread
+    if (!jpeg.length) { *loading = NO; return nil; }   // nichts da: Platzhalter, aber nicht dauerhaft merken
+    [_imgPending addObject:k];
     long long rowId = m.rowId;
     MESH_WEAK ChatViewController *weakSelf = self;
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    // Eine Warteschlange, niedrige Priorität: der A4 hat einen Kern, die Wechsel-Animation geht vor.
+    static dispatch_queue_t q; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        q = dispatch_queue_create("mesh.chat.images", DISPATCH_QUEUE_SERIAL);
+        dispatch_set_target_queue(q, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0));
+    });
+    dispatch_async(q, ^{
         UIImage *decoded = [MeshImageCodec imageFromData:jpeg formats:MeshImageJPEG];
         dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf imageReady:decoded row:rowId]; });
     });
     return nil;
 }
 
+static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width * img.size.height * img.scale * img.scale * 4); }
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    [_imgCache removeAllObjects];
+    [_thumbCache removeAllObjects];
+    [_fileCache removeAllObjects];
+}
+
 - (UIImage *)decodeNow:(MeshMessage *)m {
     UIImage *img = [MeshImageCodec imageFromData:[[MeshSession shared] mediaOf:m] formats:MeshImageJPEG];
-    if (img) [_imgCache setObject:img forKey:@(m.rowId)];
+    if (img) [_imgCache setObject:img forKey:@(m.rowId) cost:pixelCost(img)];
     return img;
 }
 
 - (void)imageReady:(UIImage *)img row:(long long)rowId {
     [_imgPending removeObject:@(rowId)];
-    [_imgCache setObject:img ?: (id)[NSNull null] forKey:@(rowId)];
+    if (img) [_imgCache setObject:img forKey:@(rowId) cost:pixelCost(img)];
+    else [_imgCache setObject:[NSNull null] forKey:@(rowId)];
     [self reloadVisibleRow:rowId];
 }
 
@@ -413,7 +431,7 @@
 }
 
 // Bilder und Sprachnachrichten eines nicht angenommenen Kontakts erst nach Bestätigung dekodieren.
-- (BOOL)mayShowMediaOf:(MeshMessage *)m { return m.fromMe || [[MeshSession shared] isAccepted:_peerHex]; }
+- (BOOL)mayShowMediaOf:(MeshMessage *)m { return m.fromMe || _acceptedState == 2; }   // je reload einmal abgefragt, nicht pro Zeile
 
 - (void)askAcceptPeer {
     NSString *peer = _peerHex;

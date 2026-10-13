@@ -4,22 +4,25 @@
 
 static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+// Beide Richtungen über C-Puffer: am A4 laufen hier ganze Bilder durch, je Zeichen ein
+// Objective-C-Aufruf (characterAtIndex:, appendFormat:) kostete pro Bild über 50 ms.
 + (NSString *)encode:(NSData *)data {
     const unsigned char *b = data.bytes; NSUInteger n = data.length;
-    NSMutableString *out = [NSMutableString stringWithCapacity:((n + 2) / 3) * 4];
+    NSUInteger len = ((n + 2) / 3) * 4;
+    char *o = malloc(len ? len : 1);
+    if (!o) return nil;
+    NSUInteger k = 0;
     for (NSUInteger i = 0; i < n; i += 3) {
-        unsigned int v = b[i] << 16;
+        unsigned int v = (unsigned int)b[i] << 16;
         int have = 1;
-        if (i + 1 < n) { v |= b[i+1] << 8;  have = 2; }
-        if (i + 2 < n) { v |= b[i+2];       have = 3; }
-        char c[4] = {
-            B64[(v >> 18) & 0x3F], B64[(v >> 12) & 0x3F],
-            have >= 2 ? B64[(v >> 6) & 0x3F] : '=',
-            have >= 3 ? B64[v & 0x3F] : '='
-        };
-        [out appendFormat:@"%c%c%c%c", c[0], c[1], c[2], c[3]];
+        if (i + 1 < n) { v |= (unsigned int)b[i+1] << 8; have = 2; }
+        if (i + 2 < n) { v |= b[i+2];                    have = 3; }
+        o[k++] = B64[(v >> 18) & 0x3F];
+        o[k++] = B64[(v >> 12) & 0x3F];
+        o[k++] = have >= 2 ? B64[(v >> 6) & 0x3F] : '=';
+        o[k++] = have >= 3 ? B64[v & 0x3F] : '=';
     }
-    return out;
+    return [[NSString alloc] initWithBytesNoCopy:o length:k encoding:NSASCIIStringEncoding freeWhenDone:YES];
 }
 
 static int b64val(unichar c) {
@@ -32,17 +35,26 @@ static int b64val(unichar c) {
 }
 
 + (NSData *)decode:(NSString *)str {
-    NSMutableData *out = [NSMutableData data];
-    unsigned int v = 0; int bits = 0;
     NSUInteger n = str.length;
-    for (NSUInteger i = 0; i < n; i++) {
-        unichar c = [str characterAtIndex:i];
-        if (c == '=' ) break;
-        int d = b64val(c);
-        if (d < 0) continue;   // Whitespace/Zeilenumbrüche überspringen
-        v = (v << 6) | d; bits += 6;
-        if (bits >= 8) { bits -= 8; unsigned char byte = (v >> bits) & 0xFF; [out appendBytes:&byte length:1]; }
+    NSMutableData *out = [NSMutableData dataWithLength:n / 4 * 3 + 3];
+    unsigned char *o = out.mutableBytes;
+    NSUInteger k = 0;
+    unsigned int v = 0; int bits = 0;
+    unichar chunk[1024];
+    for (NSUInteger pos = 0; pos < n; pos += 1024) {
+        NSUInteger m = MIN((NSUInteger)1024, n - pos);
+        [str getCharacters:chunk range:NSMakeRange(pos, m)];
+        for (NSUInteger i = 0; i < m; i++) {
+            unichar c = chunk[i];
+            if (c == '=') goto done;
+            int d = b64val(c);
+            if (d < 0) continue;   // Whitespace/Zeilenumbrüche überspringen
+            v = (v << 6) | (unsigned int)d; bits += 6;
+            if (bits >= 8) { bits -= 8; o[k++] = (v >> bits) & 0xFF; }
+        }
     }
+done:
+    out.length = k;
     return out;
 }
 

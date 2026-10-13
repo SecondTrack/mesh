@@ -30,6 +30,7 @@
     UITextField *_search;
     UILabel *_searchHint;
     NSDictionary *_identityPictures;   // Nummer -> Profilbild der eigenen Identität
+    BOOL _loaded, _stale;     // _stale: verdeckt geändert, beim nächsten Erscheinen neu laden
 }
 
 - (void)loadView {
@@ -102,11 +103,16 @@
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(messagesChanged) name:name object:nil];
 }
 
-// Geladen wird beim Erscheinen; verdeckt (ein Chat liegt darüber) muss die Liste nicht mitlaufen.
-- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated]; [self reload]; }
+// Geladen wird beim ersten Erscheinen und danach nur, wenn sich verdeckt etwas geändert hat: Liste neu
+// lesen (GROUP BY + Entschlüsseln je Chat) vor jeder Zurück-Animation ließ den Wechsel ruckeln.
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    if (!_loaded || _stale) { _loaded = YES; _stale = NO; [self reload]; }
+}
 
 - (void)messagesChanged {
     if (self.isViewLoaded && self.view.window) [self reload];
+    else _stale = YES;
 }
 
 - (void)reload {
@@ -119,10 +125,7 @@
     [self applyFilter];
 }
 
-- (int)activeSlot {
-    for (MeshIdentityInfo *i in [[MeshSession shared] identities]) if (i.active) return i.slot;
-    return 0;
-}
+- (int)activeSlot { return [[MeshSession shared] activeIdentitySlot]; }
 
 // Ein Chat einer anderen eigenen Identität: erst zu ihr wechseln (wie Android switchAndOpen).
 - (void)switchFor:(MeshChat *)c {

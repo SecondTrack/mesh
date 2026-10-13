@@ -28,6 +28,7 @@
 
 // REQ mit einem Filter (z.B. @{@"kinds":@[@4], @"#p":@[myHex]}).
 - (void)subscribe:(NSString *)subId filter:(NSDictionary *)filter;
+- (void)unsubscribe:(NSString *)subId;   // CLOSE: Relays begrenzen offene Abos je Verbindung
 
 // Signiertes Event publizieren.
 - (void)publish:(MeshEvent *)event;

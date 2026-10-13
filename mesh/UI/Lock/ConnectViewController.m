@@ -47,10 +47,13 @@ static const CGFloat kCore = 44, kCoreGap = 6;   // Schild in der Mitte; Linien 
 
     _status = [self addLabel:@"" font:[MeshTheme nameFont] color:[MeshTheme ink] y:H - 84 height:22];
     _count  = [self addLabel:@"" font:[MeshTheme timeFont] color:[MeshTheme faint] y:H - 60 height:16];
-    // Beim ersten Start lädt Tor erst das Netz-Verzeichnis (mehrere MB) – am iPod dauert das Minuten.
-    _first = [self addLabel:L(@"First start: Tor is downloading the network once – this can take a few minutes.") font:[MeshTheme timeFont] color:[MeshTheme muted] y:H - 42 height:32];
-    _first.numberOfLines = 2; _first.hidden = YES;
+    // Tor muss nach jedem Neustart erst sein Netz-Verzeichnis (~30 MB) einlesen – am iPod gut eine Minute,
+    // beim allerersten Start kommt das Herunterladen dazu. Ehrlich sagen statt die Zahl stehen zu lassen.
     _firstStart = [MeshSession shared].torFirstStart;
+    _first = [self addLabel:_firstStart ? L(@"First start: Tor is downloading the network once – this can take a few minutes.")
+                                        : L(@"Tor is reading the network directory – about a minute on the iPod.")
+                       font:[MeshTheme timeFont] color:[MeshTheme muted] y:H - 42 height:32];
+    _first.numberOfLines = 2; _first.hidden = YES;
     _onion = [[UIImageView alloc] initWithImage:[MeshGlyphs icon:@"onion" color:[MeshTheme accent] size:18]];
     _onion.hidden = YES;
     [self.view addSubview:_onion];
@@ -170,7 +173,7 @@ static CAShapeLayer *circleLayer(CGPoint c, CGFloat r, UIColor *fill, UIColor *s
     else if (s.torFailed) _status.text = L(@"Tor is not running — Mesh stays offline");
     else if (s.torReady) _status.text = L(@"Connecting via Tor …");
     else _status.text = LF(@"Starting Tor … %d%%", (int)_shown);
-    _first.hidden = !(s.usesTor && !up && !s.torReady && !s.torFailed && _firstStart);
+    _first.hidden = !(s.usesTor && !up && !s.torReady && !s.torFailed);
     [self placeOnion:s.usesTor];
 }
 

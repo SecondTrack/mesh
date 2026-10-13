@@ -18,8 +18,7 @@ static const CGFloat kPadX = 14, kPadY = 5, kRowPad = 6, kMaxFrac = 0.8f;
         _label.backgroundColor = [MeshTheme surface];
         _label.textAlignment = NSTextAlignmentCenter;
         _label.numberOfLines = 0;
-        _label.layer.cornerRadius = 10;
-        _label.clipsToBounds = YES;
+        _label.layer.cornerRadius = 10;   // rundet nur den Hintergrund, ohne teures Ausschneiden
         [self.contentView addSubview:_label];
     }
     return self;

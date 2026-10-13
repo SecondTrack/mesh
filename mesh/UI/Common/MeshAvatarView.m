@@ -33,7 +33,11 @@
     _pubkey = [pubkey copy];
     [self invalidate];
 }
-- (void)setPicture:(NSString *)picture { _picture = [picture copy]; [self invalidate]; }
+- (void)setPicture:(NSString *)picture {
+    if (picture == _picture || [picture isEqualToString:_picture]) return;   // gleiches Bild: nicht neu zeichnen
+    _picture = [picture copy];
+    [self invalidate];
+}
 
 - (void)invalidate {
     _image = nil;
@@ -43,10 +47,12 @@
 
 - (void)forget { _image = nil; _resolved = NO; }   // beim Sperren: kein entschlüsseltes Bild halten
 
+// Rund zeichnet drawRect selbst (Bild, Platzhalter und Identicon clippen auf den Kreis). Der Radius bleibt
+// für Rahmen (Plakette mit Ring), aber ohne clipsToBounds: Ausschneiden hieße am A4 einen eigenen
+// Offscreen-Durchgang pro Avatar und Frame.
 - (void)setFrame:(CGRect)frame {
     [super setFrame:frame];
-    self.layer.cornerRadius = MIN(frame.size.width, frame.size.height) / 2;   // immer rund
-    self.clipsToBounds = YES;
+    self.layer.cornerRadius = MIN(frame.size.width, frame.size.height) / 2;
 }
 
 // Aufgelöste Profilbilder je Quelle und Pubkey (NSNull = keins), damit wiederverwendete Zellen

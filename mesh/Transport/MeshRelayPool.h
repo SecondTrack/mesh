@@ -37,6 +37,7 @@
 // An alle gerade verbundenen Relays. Dauerhafte Abos liefert der Delegate bei jeder Verbindung.
 - (void)publish:(MeshEvent *)event;
 - (void)subscribe:(NSString *)subId filter:(NSDictionary *)filter;   // einmalig, ohne Wiederholung
+- (void)unsubscribe:(NSString *)subId;                               // einmaliges Abo wieder schließen
 - (void)resubscribe;
 - (void)reconnectNow;  // Getrenntes sofort neu verbinden (z.B. im VoIP-Weckruf, Timer laufen dann nicht)   // Abos des Delegates neu senden (gleiche ID ersetzt das alte, NIP-01)
 @end

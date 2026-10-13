@@ -1,7 +1,8 @@
 #import "MeshMP4Sanitize.h"
 
 // ---- Grenzen ----
-enum { kMaxInput = 50 * 1024 * 1024, kMaxSamples = 20000, kMaxSide = 1920, kMaxDepth = 10 };
+enum { kMaxInput = 8 * 1024 * 1024,   /* Dateien in Mesh: höchstens 700 kB Inhalt; Spielraum, aber kein Speicher-Risiko am 256-MB-iPod */
+        kMaxSamples = 20000, kMaxSide = 1920, kMaxDepth = 10 };
 static const uint64_t kMaxSeconds = 600;
 
 #define FOURCC(a,b,c,d) ((uint32_t)(a) << 24 | (uint32_t)(b) << 16 | (uint32_t)(c) << 8 | (uint32_t)(d))
@@ -333,7 +334,8 @@ static NSData *buildFile(NSData *src, Track *tracks, int nTracks) {
         for (int i = 0; i < nTracks; i++) for (uint32_t s = 0; s < tracks[i].nSamples; s++) { newOff[i][s] = pos; pos += tracks[i].sizes[s]; }
         if (pos > 0xFFFFFFFFull) break;
         if (pass == 1) {
-            out = head;
+            out = [NSMutableData dataWithCapacity:(NSUInteger)pos];   // Größe steht fest: kein Umkopieren beim Wachsen
+            [out appendData:head];
             NSUInteger mdat = openBox(out, FOURCC('m','d','a','t'));
             const uint8_t *p = src.bytes;
             for (int i = 0; i < nTracks; i++) for (uint32_t s = 0; s < tracks[i].nSamples; s++) [out appendBytes:p + tracks[i].offsets[s] length:tracks[i].sizes[s]];

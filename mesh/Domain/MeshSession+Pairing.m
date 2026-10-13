@@ -110,6 +110,7 @@ static void derive(NSString *words, NSString **tag, NSData **key) {
                 if (since < 8 && !(first && -[first timeIntervalSinceNow] >= 2)) { dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), check); return; }
                 check = nil;
                 [gPairWait removeObjectForKey:sub];
+                [self.pool unsubscribe:sub];   // sonst bleibt je Suche ein Abo offen, bis das Relay neue ablehnt
                 NSMutableSet *codes = [NSMutableSet set];
                 long long t = (long long)[[NSDate date] timeIntervalSince1970];
                 for (MeshEvent *e in w[@"events"]) {

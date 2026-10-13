@@ -91,8 +91,10 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
         _bubble = [[MeshPadLabel alloc] init];
         _bubble.numberOfLines = 0;
         _bubble.font = [MeshTheme bodyFont];
+        // Rund wird nur die Hintergrundfarbe (layer.cornerRadius ohne Ausschneiden): Text, Foto (eigene
+        // Rundung, 3 pt Rand) und Symbole reichen nicht in die Ecken. clipsToBounds hieße am A4 einen
+        // Offscreen-Durchgang pro Blase und Frame – der Hauptgrund für Ruckeln beim Wechseln.
         _bubble.layer.cornerRadius = [MeshTheme bubbleRadius];
-        _bubble.clipsToBounds = YES;
         [self.contentView addSubview:_bubble];
         _photo = [[UIImageView alloc] init];
         _photo.contentMode = UIViewContentModeScaleAspectFill;
@@ -103,7 +105,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
         [self.contentView addSubview:_tick];
         // Sprach-Elemente (anfangs versteckt): runder Play/Pause-Kreis + Wellenform + Dauer.
         _vIcon = [[UIImageView alloc] init]; _vIcon.contentMode = UIViewContentModeCenter;
-        _vIcon.clipsToBounds = YES; _vIcon.layer.cornerRadius = kVoiceIcon / 2; _vIcon.hidden = YES;
+        _vIcon.layer.cornerRadius = kVoiceIcon / 2; _vIcon.hidden = YES;
         [_bubble addSubview:_vIcon];
         _vBar = [[MeshWaveView alloc] init]; _vBar.backgroundColor = [UIColor clearColor]; _vBar.opaque = NO; _vBar.hidden = YES;
         [_bubble addSubview:_vBar];
@@ -114,7 +116,6 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
         _play.contentMode = UIViewContentModeCenter;
         _play.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6f];
         _play.layer.cornerRadius = kVideoPlay / 2;
-        _play.clipsToBounds = YES;
         _play.image = [MeshGlyphs playPauseIcon:NO size:26 color:[UIColor whiteColor]];
         _play.hidden = YES;
         [_bubble addSubview:_play];
@@ -128,7 +129,6 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     _fIcon = [[UIImageView alloc] initWithFrame:CGRectMake(8, (kFileHeight - kFileIcon) / 2, kFileIcon, kFileIcon)];
     _fIcon.contentMode = UIViewContentModeCenter;
     _fIcon.layer.cornerRadius = 9;
-    _fIcon.clipsToBounds = YES;
     _fName = [[UILabel alloc] initWithFrame:CGRectMake(kFileIcon + 16, 9, kFileWidth - kFileIcon - 24, 18)];
     _fName.font = [MeshTheme labelFont];
     _fName.lineBreakMode = NSLineBreakByTruncatingMiddle;
@@ -278,7 +278,6 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     _reaction.layer.cornerRadius = kReactionHeight / 2;
     _reaction.layer.borderWidth = 1.5f;
     _reaction.layer.borderColor = [MeshTheme bg].CGColor;
-    _reaction.clipsToBounds = YES;
     _reaction.hidden = YES;
     [self.contentView addSubview:_reaction];
 }

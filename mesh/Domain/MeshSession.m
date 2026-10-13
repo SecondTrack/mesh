@@ -132,6 +132,8 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 
 #pragma mark - Identitäten
 
+- (int)activeIdentitySlot { return _active.slot; }
+
 - (NSArray *)identities {
     NSMutableArray *out = [NSMutableArray array];
     for (MeshIdentity *i in _allIdentities) {

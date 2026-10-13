@@ -46,6 +46,12 @@ static NSString *idOf(NSString *code) {
     for (NSInteger x = 1; x <= k; x++) { if (e[@(x)]) [code appendString:e[@(x)]]; else [miss addObject:@(x)]; }
     _missing = miss;
     if (miss.count) return nil;
-    return [idOf(code) isEqualToString:i] ? code : nil;   // nur, wenn die Teile wirklich zusammenpassen
+    if ([idOf(code) isEqualToString:i]) return code;      // nur, wenn die Teile wirklich zusammenpassen
+    // Alle Teile da, passen aber nicht (falsch gelesen oder verfälscht): von vorn sammeln, statt mit
+    // leerer Liste festzuhängen.
+    [_got removeObjectForKey:key];
+    for (NSInteger x = 1; x <= k; x++) [miss addObject:@(x)];
+    _missing = miss;
+    return nil;
 }
 @end

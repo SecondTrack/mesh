@@ -134,6 +134,10 @@
     [self sendJSON:@[@"REQ", subId, filter ?: @{}]];
 }
 
+- (void)unsubscribe:(NSString *)subId {
+    [self sendJSON:@[@"CLOSE", subId]];
+}
+
 - (void)publish:(MeshEvent *)event {
     [self sendJSON:@[@"EVENT", [event toJSONObject]]];
 }

@@ -124,7 +124,25 @@ static UIBezierPath *bezierFromSVG(NSString *d) {
 
 @implementation MeshGlyphs
 
+// Gerenderte Symbole merken: jede Zelle fragt Häkchen & Co. neu an, und SVG parsen + zeichnen kostet am A4 ~1 ms.
+static NSCache *GlyphCache(void) {
+    static NSCache *c; static dispatch_once_t once;
+    dispatch_once(&once, ^{ c = [[NSCache alloc] init]; c.countLimit = 160; });
+    return c;
+}
+
 + (UIImage *)icon:(NSString *)name color:(UIColor *)color size:(CGFloat)size {
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    if (![color getRed:&r green:&g blue:&b alpha:&a]) { CGFloat w = 0; [color getWhite:&w alpha:&a]; r = g = b = w; }
+    NSString *key = [NSString stringWithFormat:@"%@|%.3f|%.3f|%.3f|%.3f|%.1f", name, r, g, b, a, size];
+    UIImage *hit = [GlyphCache() objectForKey:key];
+    if (hit) return hit;
+    UIImage *img = [self renderIcon:name color:color size:size];
+    if (img) [GlyphCache() setObject:img forKey:key];
+    return img;
+}
+
++ (UIImage *)renderIcon:(NSString *)name color:(UIColor *)color size:(CGFloat)size {
     NSString *d = pathFor(name);
     if (!d) return nil;
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);

@@ -51,6 +51,7 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 
 // Mehrere Identitäten wie in der Android-App: alle mit derselben PIN, alle empfangen gleichzeitig,
 // angezeigt wird eine. Der Umschalter steht hinter einer erneuten PIN-Abfrage.
+- (int)activeIdentitySlot;          // ohne identities: die lädt (entschlüsselt) alle Profile
 - (NSArray *)identities;                                      // MeshIdentityInfo
 - (void)switchToIdentity:(int)slot;                           // MeshIdentityChangedNotification
 - (BOOL)addIdentityWithPin:(NSString *)pin nsec:(NSString *)nsec;   // nsec nil = neuer Schlüssel; wird aktiv

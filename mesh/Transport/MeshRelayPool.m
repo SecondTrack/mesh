@@ -4,6 +4,7 @@
 #import "MeshNotifications.h"
 
 static const NSTimeInterval kBackoffMin = 5, kBackoffMax = 120, kTick = 5;
+static const NSTimeInterval kStableAfter = 60;   // erst eine so lange gehaltene Verbindung setzt den Backoff zurück
 static const NSUInteger kMaxPendingEvents = 200;
 
 @interface MeshRelayPool () <MeshRelayDelegate>
@@ -14,6 +15,7 @@ static const NSUInteger kMaxPendingEvents = 200;
     MeshVerifiedEvents *_verified;    // geprüfte Event-IDs, geteilt von allen Relays des Pools
     NSMutableDictionary *_nextTry;    // url -> NSDate
     NSMutableDictionary *_backoff;    // url -> NSNumber (Sekunden)
+    NSMutableDictionary *_upSince;    // url -> NSDate der aktuellen Verbindung
     NSMutableSet *_authSent;          // urls, an die in der aktuellen Verbindung AUTH ging
     NSMutableDictionary *_sentTo;     // eventId -> NSSet der urls, die es bekommen haben
     NSTimer *_timer;
@@ -119,6 +121,10 @@ static const NSUInteger kMaxPendingEvents = 200;
     for (MeshRelay *r in _relays) if (r.connected) [r subscribe:subId filter:filter];
 }
 
+- (void)unsubscribe:(NSString *)subId {
+    for (MeshRelay *r in _relays) if (r.connected) [r unsubscribe:subId];
+}
+
 - (void)reconnectNow {
     [_nextTry removeAllObjects];
     [self tick];
@@ -139,9 +145,11 @@ static const NSUInteger kMaxPendingEvents = 200;
 
 #pragma mark - MeshRelayDelegate
 
+// Backoff nicht schon beim Verbinden zurücksetzen: ein Relay, das annimmt und gleich wieder schließt
+// (Rate-Limit, AUTH-Pflicht, Tor-Sperre), würde sonst alle 5 s neu angewählt (Circuit + TLS am A4).
 - (void)relayDidConnect:(MeshRelay *)relay {
-    [_backoff removeObjectForKey:relay.url];
-    [_nextTry removeObjectForKey:relay.url];
+    if (!_upSince) _upSince = [NSMutableDictionary dictionary];
+    _upSince[relay.url] = [NSDate date];
     if (!_running) { [relay disconnect]; return; }
     [_authSent removeObject:relay.url];   // frische Verbindung: wieder genau ein AUTH-Versuch
     [self subscribeAllOn:relay];
@@ -150,6 +158,12 @@ static const NSUInteger kMaxPendingEvents = 200;
 }
 
 - (void)relay:(MeshRelay *)relay didDisconnectWithError:(NSString *)err {
+    NSDate *up = _upSince[relay.url];
+    [_upSince removeObjectForKey:relay.url];
+    if (up && -[up timeIntervalSinceNow] >= kStableAfter * _timeUnit) {   // lief stabil: gleich wieder versuchen
+        [_backoff removeObjectForKey:relay.url];
+        [_nextTry removeObjectForKey:relay.url];
+    }
     [self postConnectionChanged];
 }
 
