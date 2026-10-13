@@ -1,6 +1,7 @@
 #import "MeshImageCodec.h"
 #import "MeshBase64.h"
 #import "MeshNotifications.h"
+#import "MeshImageDecoder.h"
 
 static const CGFloat kChatMaxSide = 480, kAvatarSide = 256;
 static const CGFloat kChatQuality = 0.4f, kAvatarQuality = 0.5f;
@@ -18,7 +19,8 @@ static NSData *scaledJPEG(UIImage *image, CGFloat scale, CGFloat quality) {
 @implementation MeshImageCodec
 
 + (UIImage *)imageFromData:(NSData *)data formats:(MeshImageFormats)formats {
-    return [MeshMediaCheck isAcceptableImage:data formats:formats] ? [UIImage imageWithData:data] : nil;
+    // Kopf prüfen (Format, Größe), dann im eigenen Code entpacken: ImageIO sieht keine fremden Dateien
+    return [MeshMediaCheck isAcceptableImage:data formats:formats] ? MeshDecodeImage(data, 2048) : nil;
 }
 
 // Entschlüsselte Profilbilder; beim Sperren geleert.

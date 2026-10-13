@@ -1,3 +1,4 @@
+#import "MeshMP4Sanitize.h"
 #import "MeshFileViewer.h"
 #import <MediaPlayer/MediaPlayer.h>
 #import "MeshCompat.h"
@@ -54,6 +55,9 @@ static MeshFileKind kindOf(NSData *data, NSString *mime) {
 }
 
 + (void)playVideo:(NSData *)data from:(UIViewController *)host {
+    // Der System-Player bekommt nie die empfangene Datei, nur eine von Mesh neu verpackte (MeshMP4Sanitize)
+    data = MeshMP4Sanitize(data, NULL);
+    if (!data) { [MeshPopup info:L(@"This video could not be checked safely and is not played.")]; return; }
     [gOpen close];
     MeshFileViewer *v = [[MeshFileViewer alloc] init];
     v->_dir = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"mesh-open-%u", arc4random()]];

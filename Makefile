@@ -50,7 +50,7 @@ Mesh_CFLAGS += $(addprefix -I,$(MESH_DIRS))
 # Kompatibilitätsschicht in jeder Übersetzungseinheit (iOS-4/5/6-Weichen, siehe mesh/Compat).
 Mesh_CFLAGS += -include mesh/Compat/MeshCompat.h
 Mesh_CFLAGS += -Ivendor/secp256k1/include -Ivendor/mbedtls/include
-Mesh_CFLAGS += -Ivendor/qrcodegen/include -Ivendor/quirc/include
+Mesh_CFLAGS += -Ivendor/qrcodegen/include -Ivendor/quirc/include -Ivendor/stb
 
 # Tor: eigenes Programm vendor/tor/mesh-tor (tools/build-tor.sh), läuft als LaunchDaemon
 # de.mesh.tor (layout/). Die App verbindet dann nur über Tor. MESH_TOR=0 baut ohne.

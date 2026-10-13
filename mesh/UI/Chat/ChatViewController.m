@@ -38,6 +38,7 @@
     NSCache *_fileCache;                // rowId -> @[Name, MIME, Bytes] von Dateien
     NSCache *_thumbCache;               // rowId -> Vorschaubild eines Videos (NSNull: keins möglich)
     NSMutableSet *_thumbPending;        // rowIds, deren Vorschaubild gerade entsteht
+    NSMutableSet *_imgPending;          // rowIds, deren Bild gerade im Hintergrund dekodiert wird
     NSMutableDictionary *_quotes;       // cmid -> @[Autor, Zeile] der zitierten Nachricht, je Neuladen
     NSUInteger _limit;                  // so viele der neuesten Nachrichten sind geladen (wächst beim Hochscrollen)
     NSMutableDictionary *_heights;      // Zeilenhöhe je Nachricht (rowId, Reaktionen, Art, Breite) – Messen kostet am iPod viel
@@ -73,6 +74,7 @@
         _fileCache = [[NSCache alloc] init]; _fileCache.countLimit = 32;
         _thumbCache = [[NSCache alloc] init]; _thumbCache.countLimit = 24;
         _thumbPending = [NSMutableSet set];
+        _imgPending = [NSMutableSet set];
         _quotes = [NSMutableDictionary dictionary];
     }
     return self;
@@ -362,16 +364,52 @@
 #pragma mark - Medien
 
 // Bilder werden erst für sichtbare Zeilen aus der DB geladen und begrenzt gecacht.
+// Entschlüsseln (Store) auf dem Main-Thread, Dekodieren im Hintergrund: Öffnen und Scrollen ruckeln nicht.
 - (UIImage *)imageForMessage:(MeshMessage *)m {
+    id hit = [_imgCache objectForKey:@(m.rowId)];
+    if (hit) return hit == [NSNull null] ? nil : hit;
+    return [self mayShowMediaOf:m] ? [self decodeNow:m] : nil;
+}
+
+// Für Zellen: fehlt das Bild noch, nil zurück und im Hintergrund dekodieren; die Zeile lädt danach neu.
+- (UIImage *)cachedImageFor:(MeshMessage *)m loading:(BOOL *)loading {
     NSNumber *k = @(m.rowId);
-    UIImage *img = [_imgCache objectForKey:k];
-    if (img) return img;
+    id hit = [_imgCache objectForKey:k];
+    *loading = NO;
+    if (hit) return hit == [NSNull null] ? nil : hit;
     if (![self mayShowMediaOf:m]) return nil;
-    NSData *jpeg = [[MeshSession shared] mediaOf:m];
-    img = [MeshImageCodec imageFromData:jpeg formats:MeshImageJPEG];
-    if (!img) return nil;
-    [_imgCache setObject:img forKey:k];
+    *loading = YES;
+    if ([_imgPending containsObject:k]) return nil;
+    [_imgPending addObject:k];
+    NSData *jpeg = [[MeshSession shared] mediaOf:m];   // Store nur auf dem Main-Thread
+    long long rowId = m.rowId;
+    MESH_WEAK ChatViewController *weakSelf = self;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        UIImage *decoded = [MeshImageCodec imageFromData:jpeg formats:MeshImageJPEG];
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf imageReady:decoded row:rowId]; });
+    });
+    return nil;
+}
+
+- (UIImage *)decodeNow:(MeshMessage *)m {
+    UIImage *img = [MeshImageCodec imageFromData:[[MeshSession shared] mediaOf:m] formats:MeshImageJPEG];
+    if (img) [_imgCache setObject:img forKey:@(m.rowId)];
     return img;
+}
+
+- (void)imageReady:(UIImage *)img row:(long long)rowId {
+    [_imgPending removeObject:@(rowId)];
+    [_imgCache setObject:img ?: (id)[NSNull null] forKey:@(rowId)];
+    [self reloadVisibleRow:rowId];
+}
+
+- (void)reloadVisibleRow:(long long)rowId {
+    for (NSUInteger i = 0; i < _messages.count; i++)
+        if ([_messages[i] rowId] == rowId) {
+            NSIndexPath *ip = [NSIndexPath indexPathForRow:(NSInteger)i inSection:0];
+            if ([[_table indexPathsForVisibleRows] containsObject:ip]) [_table reloadRowsAtIndexPaths:@[ip] withRowAnimation:UITableViewRowAnimationNone];
+            break;
+        }
 }
 
 // Bilder und Sprachnachrichten eines nicht angenommenen Kontakts erst nach Bestätigung dekodieren.
@@ -417,12 +455,7 @@
 - (void)thumbReady:(UIImage *)thumb row:(long long)rowId {
     [_thumbPending removeObject:@(rowId)];
     [_thumbCache setObject:thumb ?: (id)[NSNull null] forKey:@(rowId)];
-    for (NSUInteger i = 0; i < _messages.count; i++)
-        if ([_messages[i] rowId] == rowId) {
-            NSIndexPath *ip = [NSIndexPath indexPathForRow:(NSInteger)i inSection:0];
-            if ([[_table indexPathsForVisibleRows] containsObject:ip]) [_table reloadRowsAtIndexPaths:@[ip] withRowAnimation:UITableViewRowAnimationNone];
-            break;
-        }
+    [self reloadVisibleRow:rowId];
 }
 
 - (NSArray *)fileInfoOf:(MeshMessage *)m {
@@ -669,9 +702,13 @@ static NSString *reactionsOf(MeshMessage *m) {
         }
         case MeshPayloadImage: {
             // Größe bekannt, das Bild selbst kann trotzdem fehlen (nicht dekodierbar): dann der Platzhalter.
-            UIImage *img = [self imageForMessage:m];
+            BOOL loading = NO;
+            UIImage *img = [self cachedImageFor:m loading:&loading];
+            CGSize size = CGSizeMake(m.width, m.height);
             if (img) [cell setImage:img fromMe:m.fromMe status:m.status width:w];
-            else     [cell setText:[self imagePlaceholderFor:m] fromMe:m.fromMe status:m.status width:w];
+            else if (loading && size.width > 0 && size.height > 0)
+                [cell setImage:nil size:size fromMe:m.fromMe status:m.status width:w];   // Rahmen in voller Größe, Bild folgt
+            else [cell setText:[self imagePlaceholderFor:m] fromMe:m.fromMe status:m.status width:w];
             break;
         }
         default:

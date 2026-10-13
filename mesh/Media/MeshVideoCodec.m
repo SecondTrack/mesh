@@ -1,3 +1,4 @@
+#import "MeshMP4Sanitize.h"
 #import "MeshVideoCodec.h"
 #import <AVFoundation/AVFoundation.h>
 
@@ -25,6 +26,8 @@
 
 + (UIImage *)thumbnailOfMP4:(NSData *)mp4 maxSide:(CGFloat)maxSide {
     if (mp4.length < 12 || memcmp((const uint8_t *)mp4.bytes + 4, "ftyp", 4)) return nil;
+    mp4 = MeshMP4Sanitize(mp4, NULL);   // auch das Vorschaubild nur aus der neu verpackten Datei
+    if (!mp4) return nil;
     NSFileManager *fm = [NSFileManager defaultManager];
     NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"mesh-thumb-%u.mp4", arc4random()]];
     if (![mp4 writeToFile:path options:NSDataWritingAtomic | NSDataWritingFileProtectionComplete error:NULL]) return nil;

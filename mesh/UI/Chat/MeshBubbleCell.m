@@ -376,9 +376,13 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     [self layoutDecorationsFromMe:fromMe width:width];
 }
 - (void)setImage:(UIImage *)image fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width {
+    [self setImage:image size:image.size fromMe:fromMe status:status width:width];
+}
+
+- (void)setImage:(UIImage *)image size:(CGSize)size fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width {
     _bubble.text = nil; [self hideVoice]; [self hideFile];
     _bubble.backgroundColor = fromMe ? [MeshTheme accentDeep] : [MeshTheme surfaceHi];
-    CGSize ds = MeshImgDisplaySize(image.size, width * 0.62f, 260);
+    CGSize ds = MeshImgDisplaySize(size, width * 0.62f, 260);
     CGFloat bw = ds.width + 6, bh = ds.height + 6;
     CGFloat x = fromMe ? (width - bw - 12) : 12;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, bw, bh);

@@ -11,6 +11,8 @@
 
 - (void)setText:(NSString *)text fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
 - (void)setImage:(UIImage *)image fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
+// image nil: leerer Rahmen in der Größe size, solange das Bild noch dekodiert wird
+- (void)setImage:(UIImage *)image size:(CGSize)size fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
 - (void)setVoice:(int)seconds seed:(NSString *)seed playing:(BOOL)playing fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
 - (void)setFile:(NSString *)name detail:(NSString *)detail fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
 // Video wie bei Android: Vorschaubild (nil = dunkle Fläche, solange es entsteht) mit rundem Play-Knopf.
