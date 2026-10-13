@@ -386,3 +386,5 @@
 "Processed" = "Verarbeitet";
 "Stop" = "Stop";
 "Scan QR" = "QR scannen";
+"Code not readable? Show in parts" = "Code nicht lesbar? In Teilen zeigen";
+"Show as one code" = "Als ein Code zeigen";
