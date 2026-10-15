@@ -84,8 +84,10 @@ static const CGFloat kRing = 5, kRingRadius = 26;
     [self.view addSubview:frame];
     // Teil-Anzeige oben rechts auf dem Rahmen ("1/2")
     _partBadge = [MeshControls labelWithFrame:CGRectMake(frame.frame.origin.x + outer - 44, frame.frame.origin.y - 6, 44, 22) font:[MeshTheme timeFont] color:[UIColor blackColor]];
-    _partBadge.textAlignment = NSTextAlignmentCenter; _partBadge.backgroundColor = [MeshTheme accent];
-    _partBadge.layer.cornerRadius = 11; _partBadge.layer.masksToBounds = YES;
+    // Fläche als Layer-Hintergrund: cornerRadius rundet sie ohne masksToBounds (kein Offscreen-Durchgang)
+    _partBadge.textAlignment = NSTextAlignmentCenter; _partBadge.backgroundColor = [UIColor clearColor];
+    _partBadge.layer.backgroundColor = [MeshTheme accent].CGColor;
+    _partBadge.layer.cornerRadius = 11;
     [self.view addSubview:_partBadge];
     y += outer + 10;
 

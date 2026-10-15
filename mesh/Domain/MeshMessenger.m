@@ -17,6 +17,7 @@
 #import "MeshProfile.h"
 #import "MeshBase64.h"
 #import "MeshLog.h"
+#import "MeshMemory.h"
 
 static const long long kMaxClockSkew = 15 * 60;   // Absender-Zeit höchstens so weit in der Zukunft
 
@@ -63,6 +64,7 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
     MeshPanic *_panic;
     NSMutableDictionary *_pictureTs;   // Kontakt -> created_at des zuletzt übernommenen Bildes
     NSMutableSet *_pictureReplied;     // wem schon einmal als Antwort das eigene Bild ging (kein Ping-Pong)
+    NSMutableDictionary *_dmKeys;      // Kontakt -> @[ECDH-Geheimnis (NIP-04), Gesprächsschlüssel (NIP-44)], nur RAM
 }
 
 - (instancetype)initWithStore:(MeshStore *)store keys:(MeshKeys *)keys inbox:(MeshInboxPolicy *)inbox panic:(MeshPanic *)panic {
@@ -71,8 +73,29 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
         _myPubkey = [MeshHex encode:keys.xonlyPub];
         _pictureTs = [NSMutableDictionary dictionary];
         _pictureReplied = [NSMutableSet set];
+        _dmKeys = [NSMutableDictionary dictionary];
     }
     return self;
+}
+
+- (void)dealloc { [self wipeKeys]; }
+
+- (void)wipeKeys {
+    for (NSArray *k in [_dmKeys allValues]) for (NSData *d in k) MeshWipe(d);
+    [_dmKeys removeAllObjects];
+}
+
+// ECDH je Kontakt einmal statt bei jeder Nachricht (secp256k1 am A4 spürbar). Begrenzt: Fremde
+// (Spam mit Wegwerf-Schlüsseln) füllen den Speicher nicht; voll = alles verwerfen.
+- (NSArray *)dmKeysFor:(NSString *)peer {
+    NSArray *k = _dmKeys[peer];
+    if (k) return k;
+    NSData *shared = [_keys ecdhSharedX:[MeshHex decode:peer]];
+    NSData *conversation = [MeshNip44 conversationKeyFromSharedX:shared];
+    if (!shared || !conversation) { MeshWipe(shared); MeshWipe(conversation); return nil; }
+    if (_dmKeys.count >= 64) [self wipeKeys];
+    _dmKeys[peer] = k = @[shared, conversation];
+    return k;
 }
 
 #pragma mark - Verschlüsseln
@@ -84,20 +107,22 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
     NSString *viaSignal = [_signal encrypt:plain to:peer bundle:[_store bundleForContact:peer] verified:[_store isVerified:peer] refused:&refused];
     if (viaSignal) return viaSignal;
     if (refused) return nil;   // verifizierter Kontakt mit fremder Identität: nicht auf NIP-44 ausweichen
-    NSData *peerKey = [MeshHex decode:peer];
+    NSArray *k = [self dmKeysFor:peer];
+    if (!k) return nil;
     NSUInteger bytes = [plain lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
-    if (bytes <= MeshNip44MaxPlaintext) return [MeshNip44 encrypt:plain keys:_keys peerXonlyPub:peerKey];
-    return [MeshNip04 encrypt:plain keys:_keys peerXonlyPub:peerKey];
+    if (bytes <= MeshNip44MaxPlaintext) return [MeshNip44 encrypt:plain conversationKey:k[1] nonce:nil];
+    return [MeshNip04 encrypt:plain sharedX:k[0]];
 }
 
 - (NSString *)decrypt:(NSString *)payload from:(NSString *)peer {
     if ([payload hasPrefix:MeshSignalScheme]) return [_signal decrypt:payload from:peer verified:[_store isVerified:peer]];
-    NSData *peerKey = [MeshHex decode:peer];
+    NSArray *k = [self dmKeysFor:peer];
+    if (!k) return nil;
     if ([payload rangeOfString:@"?iv="].location == NSNotFound) {
-        NSString *plain = [MeshNip44 decrypt:payload keys:_keys peerXonlyPub:peerKey];
+        NSString *plain = [MeshNip44 decrypt:payload conversationKey:k[1]];
         if (plain) return plain;
     }
-    return [MeshNip04 decrypt:payload keys:_keys peerXonlyPub:peerKey];
+    return [MeshNip04 decrypt:payload sharedX:k[0]];
 }
 
 // Eigenes Bundle für den Kontakt: mit frischem Einmal-Schlüssel, solange keine Sitzung steht

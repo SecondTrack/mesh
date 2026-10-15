@@ -50,5 +50,16 @@ int main(void) { @autoreleasepool {
     check([MeshSeal open:old key:key context:@"c"] == nil, "legacy not accepted as current");
     check([MeshSeal openLegacy:old key:other] == nil, "legacy wrong key");
 
+    // Vorab abgeleitete Teilschlüssel: gleiches Format in beide Richtungen, nach wipe unbrauchbar
+    MeshSealKey *sk = [[MeshSealKey alloc] initWithKey:key];
+    NSString *viaKey = [MeshSeal seal:@"zwischengespeichert" sealKey:sk context:@"ctx"];
+    check([[MeshSeal open:viaKey key:key context:@"ctx"] isEqualToString:@"zwischengespeichert"], "sealKey seal opens with key");
+    check([[MeshSeal open:[MeshSeal seal:@"x" key:key context:@"ctx"] sealKey:sk context:@"ctx"] isEqualToString:@"x"], "key seal opens with sealKey");
+    check([MeshSeal open:viaKey sealKey:sk context:@"other"] == nil, "sealKey checks context");
+    check([[MeshSealKey alloc] initWithKey:[NSData dataWithBytes:"short" length:5]] == nil, "sealKey needs 32 bytes");
+    [sk wipe];
+    check([MeshSeal open:viaKey sealKey:sk context:@"ctx"] == nil && [MeshSeal seal:@"x" sealKey:sk context:@"ctx"] == nil
+          && [MeshSeal seal:@"x" sealKey:nil context:@"ctx"] == nil, "wiped sealKey unusable");
+
     return testsDone();
 }}

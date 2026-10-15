@@ -10,4 +10,7 @@
 + (NSString *)encrypt:(NSString *)text keys:(MeshKeys *)keys peerXonlyPub:(NSData *)peer32;
 // "<base64ct>?iv=<base64iv>" -> Klartext. nil bei Fehler/ungültigem Format.
 + (NSString *)decrypt:(NSString *)payload keys:(MeshKeys *)keys peerXonlyPub:(NSData *)peer32;
+// Dasselbe mit dem schon berechneten ECDH-Geheimnis (32 Byte, ecdhSharedX), z.B. je Kontakt zwischengespeichert.
++ (NSString *)encrypt:(NSString *)text sharedX:(NSData *)key;
++ (NSString *)decrypt:(NSString *)payload sharedX:(NSData *)key;
 @end

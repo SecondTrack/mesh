@@ -93,11 +93,26 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
     _active.messenger.openChat = _openChat;
     [self expireMessages];
     [_pool start];   // erst jetzt verbinden: der Abo-Filter braucht die eigenen Pubkeys
+    [self scheduleMediaMove:5];   // nach dem Entsperren erst die Oberfläche, dann im Leerlauf umziehen
+}
+
+// Einmaliger Umzug der Medieninhalte (MeshStore moveMediaStep): kleine Schritte auf dem Main-Thread
+// (Store), nur im Standard-Modus der Runloop, also nicht während gescrollt wird.
+- (void)scheduleMediaMove:(NSTimeInterval)delay {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(moveMediaStep) object:nil];
+    [self performSelector:@selector(moveMediaStep) withObject:nil afterDelay:delay inModes:@[NSDefaultRunLoopMode]];
+}
+
+- (void)moveMediaStep {
+    if (!_unlocked) return;
+    for (MeshIdentity *i in [self unlockedIdentities])
+        if ([i.store moveMediaStep]) { [self scheduleMediaMove:1.5]; return; }   // eine Identität nach der anderen; kleine Schritte mit Pausen, damit die Oberfläche flüssig bleibt
 }
 
 - (void)lock {
     [self notify:MeshWillLockNotification];   // Popups, Bildanzeigen, Caches, Aufnahmen schließen
     _unlocked = NO;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(moveMediaStep) object:nil];
     for (MeshIdentity *i in _allIdentities) [i lock];   // Schlüssel überschreiben, Datenbanken versiegeln
     [_expiryTimer invalidate]; _expiryTimer = nil;
     [_pool stop];                  // keine offenen Verbindungen im gesperrten Zustand
@@ -218,7 +233,7 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
     // Bild geändert oder entfernt: auch privat an die Kontakte (Android liest Bilder nicht aus kind-0)
     if (![before isEqualToString:profile.picture ?: @""]) [_active.messenger sendPictureToAllContacts];
     [self notify:MeshMessagesChangedNotification];
-    [self notify:MeshProfilesChangedNotification];
+    [self notifyProfileOf:_active.pubkey];
 }
 
 // NIP-01 kind-0: Name, Über und Bild ins Netz. Bild wie in der Android-App als Base64-JPEG (Avatar
@@ -308,8 +323,8 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 
 // Privat geschicktes Profilbild: Avatare neu zeichnen (MeshAvatarView und der Bild-Cache hängen am Bildtext).
 - (void)messenger:(MeshMessenger *)messenger changedPictureOf:(NSString *)peer {
-    [self notify:MeshProfilesChangedNotification];
-    [self notify:MeshMessagesChangedNotification];
+    [self notifyProfileOf:peer];
+    [self messagesChanged];   // gebündelt wie neue Nachrichten
 }
 
 // Hinweis für Nachrichten außerhalb des offenen Chats (die UI zeigt ihn nur im Vordergrund).
@@ -422,8 +437,8 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
         changed |= newer;
     }
     if (!changed) return;
-    [self notify:MeshMessagesChangedNotification];
-    [self notify:MeshProfilesChangedNotification];
+    [self messagesChanged];   // gebündelt: beim Verbinden kommen viele Profile kurz nacheinander
+    [self notifyProfileOf:event.pubkey];
 }
 
 - (void)pool:(MeshRelayPool *)pool didStoreEvent:(NSString *)eventId {
@@ -440,6 +455,12 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 
 - (void)notify:(NSString *)name {
     [[NSNotificationCenter defaultCenter] postNotificationName:name object:nil];
+}
+
+// Nur die Avatare dieses Pubkeys neu zeichnen, nicht alle Caches leeren.
+- (void)notifyProfileOf:(NSString *)pubkey {
+    [[NSNotificationCenter defaultCenter] postNotificationName:MeshProfilesChangedNotification object:nil
+                                                      userInfo:pubkey.length ? @{ MeshProfilePubkey: pubkey } : nil];
 }
 
 @end

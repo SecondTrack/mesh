@@ -29,4 +29,9 @@
 + (CGFloat)heightForFile;
 + (CGFloat)heightForVideo;
 + (CGFloat)heightForContactCardWithAction:(BOOL)action;
+
+// Für setImage:/setVideo: vorbereitet (im Hintergrund aufrufbar): auf Anzeigegröße gerechnet, Ecken
+// gerundet auf die Blasenfarbe gemalt. Die Zelle zeigt Bilder nur in dieser Form richtig.
++ (UIImage *)photoForBubble:(UIImage *)image tableWidth:(CGFloat)width fromMe:(BOOL)fromMe scale:(CGFloat)scale;
++ (UIImage *)videoThumbForBubble:(UIImage *)thumb fromMe:(BOOL)fromMe scale:(CGFloat)scale;
 @end

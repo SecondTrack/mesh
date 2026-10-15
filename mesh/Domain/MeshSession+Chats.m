@@ -137,7 +137,7 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
     [self.active.store forgetProfileTimeOf:peerHex];   // das Profil mit Bild neu laden (als Anfrage nur der Name)
     [self.active.messenger sendPictureTo:peerHex];     // eigenes Bild privat; die Gegenseite antwortet mit ihrem
     [self requestProfileOf:peerHex];
-    [self notify:MeshProfilesChangedNotification];
+    [self notifyProfileOf:peerHex];
     [self notify:MeshMessagesChangedNotification];
 }
 
@@ -216,6 +216,8 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
 }
 
 - (NSUInteger)messageCountFrom:(NSString *)key in:(NSString *)peerHex { return [self.active.store countFromKey:key chat:peerHex]; }
+- (NSUInteger)messageCountAfter:(long long)ts in:(NSString *)peerHex { return [self.active.store countAfterTs:ts chat:peerHex]; }
+- (BOOL)hasMessage:(NSString *)key in:(NSString *)peerHex { return [self.active.store hasMessageWithKey:key chat:peerHex]; }
 
 - (NSData *)mediaOf:(MeshMessage *)m {
     if (m.kind != MeshPayloadImage && m.kind != MeshPayloadVoice && m.kind != MeshPayloadFile) return nil;

@@ -20,6 +20,9 @@
 @interface MeshStore (Migration)
 - (BOOL)createSchema;    // Tabellen anlegen, ältere Schemata ergänzen, migrated aus user_version
 - (void)migrateSeals;    // einmalig beim ersten Entsperren: alles auf enc2 mit Kontext
+- (long long)metaValue:(const char *)key;                 // Tabelle meta, 0 = nicht gesetzt
+- (BOOL)setMeta:(const char *)key value:(long long)value;
+- (BOOL)finishMediaMove;                                  // Indizes anlegen, Umzug als erledigt merken
 @end
 
 static inline void bindText(sqlite3_stmt *st, int i, NSString *s) {

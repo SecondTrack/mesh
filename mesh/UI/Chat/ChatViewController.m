@@ -35,6 +35,7 @@
 static const long long kDividerRow = -1;      // Hinweiszeile "Neue Nachrichten" (keine Datenbankzeile)
 static const CGFloat kStripRow = 26;          // Zeilen unter dem Kopf: offline, Selbstlöschen
 static const NSUInteger kPage = 80;           // so viele Nachrichten je Laden (Öffnen, Hochscrollen)
+static const NSUInteger kFirstPage = 20;      // beim Öffnen zuerst nur so viele, der Rest bis kPage nach der Animation
 static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens so viele (jede kostet Entschlüsseln und Messen)
 
 @interface ChatViewController () <MeshVoiceDelegate, MeshChatInputBarDelegate>
@@ -48,12 +49,15 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     NSCache *_thumbCache;               // rowId -> Vorschaubild eines Videos (NSNull: keins möglich)
     NSMutableSet *_thumbPending;        // rowIds, deren Vorschaubild gerade entsteht
     NSMutableSet *_imgPending;          // rowIds, deren Bild gerade im Hintergrund dekodiert wird
-    NSMutableDictionary *_quotes;       // cmid -> @[Autor, Zeile] der zitierten Nachricht, je Neuladen
+    NSMutableDictionary *_quotes;       // cmid -> @[Autor, Zeile, gefunden?] der zitierten Nachricht; beim Neuladen geprüft
     NSArray *_media;                    // Bilder und Videos fürs Vollbild (Galerie-Reihenfolge), je Neuladen
     NSUInteger _limit;                  // so viele der neuesten Nachrichten sind geladen (wächst beim Hochscrollen)
-    NSMutableDictionary *_heights;      // Zeilenhöhe je Nachricht (rowId, Reaktionen, Art, Breite) – Messen kostet am iPod viel
     BOOL _loadingOlder;
-    int _acceptedState;                 // 0 unbekannt, 1 nein, 2 ja – ändert sich die Annahme, ändern sich Kontaktkarten-Höhen
+    int _acceptedState;                 // 0 unbekannt, 1 nein, 2 ja – je Neuladen einmal abgefragt, nicht je Zeile
+    NSString *_peerName;                // Anzeigename des Kontakts, je Neuladen einmal
+    NSString *_identity;                // eigener Pubkey: Zeilennummern gelten je Identität (eigene Datenbank)
+    NSMutableDictionary *_cardKnown;    // Pubkey einer Kontaktkarte -> schon angenommener Kontakt? je Neuladen
+    BOOL _appeared;                     // erstes viewDidAppear vorbei: ältere nachladen erlaubt
 
     UITableView *_table;
     MeshChatInputBar *_inputBar;
@@ -78,6 +82,9 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     BOOL       _initialScroll;       // erstes Laden: zur Trennlinie statt ans Ende
     CGFloat    _headH;
     UIButton  *_offlineRow, *_timerRow;   // unter dem Kopf
+    int        _stripOffline;             // zuletzt gezeigt: 0 verbunden, 1 offline, 2 Tor startet (-1 noch nie)
+    int        _stripTimer;               // Selbstlöschen des Chats (aus updateStrip)
+    BOOL       _stripFromSent;
 }
 
 #pragma mark - Lebenszyklus
@@ -92,6 +99,8 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
         _thumbPending = [NSMutableSet set];
         _imgPending = [NSMutableSet set];
         _quotes = [NSMutableDictionary dictionary];
+        _cardKnown = [NSMutableDictionary dictionary];
+        _stripOffline = -1;
     }
     return self;
 }
@@ -129,8 +138,6 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     [titleTap addTarget:self action:@selector(openPeer) forControlEvents:UIControlEventTouchUpInside];
     [header addSubview:titleTap];
     [self.view addSubview:header];
-    [self updateBadge];
-    [self updateTitle];
 
     // Unter dem Kopf wie bei Android: ohne Verbindung ein Hinweis, mit Selbstlöschen die Dauer (antippen: ändern)
     _offlineRow = [self stripRowWithColor:[UIColor colorWithRed:1.0f green:0x7A / 255.0f blue:0x33 / 255.0f alpha:0.16f] text:[MeshTheme ink]];
@@ -167,7 +174,7 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     tap.cancelsTouchesInView = NO; [_table addGestureRecognizer:tap];
     // Lang-drücken auf eine Nachricht: Reaktionen, Antworten, Kopieren, Löschen.
     [_table addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)]];
-    [self updateStrip];
+    // Kopf, Plaketten und Zeilen darunter setzt reload (viewDidLoad) einmal
 }
 
 - (UIButton *)stripRowWithColor:(UIColor *)bg text:(UIColor *)fg {
@@ -184,18 +191,35 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
 
 // Zeilen unter dem Kopf ein- oder ausblenden, die Liste rückt nach.
 - (void)updateStrip {
+    BOOL fromSent = NO;
+    _stripTimer = [[MeshSession shared] timerFor:_peerHex fromSent:&fromSent];
+    _stripFromSent = fromSent;
+    [self layoutStrip];
+}
+
+// Verbindung geändert (beim Tor-Start je Prozentschritt): nur die Offline-Zeile, der Timer bleibt;
+// ohne Änderung nichts tun.
+- (void)connectionChanged {
+    MeshSession *s = [MeshSession shared];
+    int offline = s.anyRelayConnected ? 0 : (s.usesTor && !s.torReady) ? 2 : 1;
+    if (offline == _stripOffline) return;
+    [self layoutStrip];
+}
+
+- (void)layoutStrip {
     if (!_table) return;
     MeshSession *s = [MeshSession shared];
     CGFloat W = self.view.bounds.size.width, y = _headH;
-    _offlineRow.hidden = s.anyRelayConnected;
+    _stripOffline = s.anyRelayConnected ? 0 : (s.usesTor && !s.torReady) ? 2 : 1;
+    _offlineRow.hidden = _stripOffline == 0;
     if (!_offlineRow.hidden) {
-        [_offlineRow setTitle:(s.usesTor && !s.torReady) ? L(@"Connecting to Tor… messages are sent once connected.")
-                                                         : L(@"Offline – messages are sent once connected.") forState:UIControlStateNormal];
+        [_offlineRow setTitle:_stripOffline == 2 ? L(@"Connecting to Tor… messages are sent once connected.")
+                                                 : L(@"Offline – messages are sent once connected.") forState:UIControlStateNormal];
         _offlineRow.frame = CGRectMake(0, y, W, kStripRow);
         y += kStripRow;
     }
-    BOOL fromSent = NO;
-    int timer = [s timerFor:_peerHex fromSent:&fromSent];
+    BOOL fromSent = _stripFromSent;
+    int timer = _stripTimer;
     _timerRow.hidden = timer == 0;
     if (timer) {
         [_timerRow setTitle:fromSent ? LF(@"Messages disappear %@ after sending", [MeshFormat timer:timer])
@@ -230,7 +254,7 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
                                                  name:UIKeyboardWillShowNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillHide:)
                                                  name:UIKeyboardWillHideNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStrip)
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(connectionChanged)
                                                  name:MeshConnectionChangedNotification object:nil];
     _readAt = [[MeshSession shared] readAtIn:_peerHex];
     _openedAt = (long long)[[NSDate date] timeIntervalSince1970];
@@ -239,11 +263,24 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
+    if (_stale) [self reload];
+    else if (_appeared) {   // zurück aus Kontaktprofil o.ä. (beim ersten Mal hat reload das schon gesetzt)
+        [self refreshPeer];
+        [self updateBadge];   // z.B. nach Verifizieren im Kontakt-Profil
+        [self updateTitle];
+    }
+}
+
+// Erst nach der Wechsel-Animation: Schreiben in die Datenbank (Uhren starten, gelesen merken) und
+// die älteren Nachrichten bis kPage, damit die Animation nicht darauf wartet.
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
     [[MeshSession shared] setOpenChat:_peerHex];   // startet die Uhren gelesener Nachrichten
     [[MeshSession shared] markReadIn:_peerHex];
-    [self updateBadge];   // z.B. nach Verifizieren im Kontakt-Profil
-    if (_stale) [self reload];
-    else [self updateTitle];
+    if (!_appeared) {
+        _appeared = YES;
+        if (_limit < kPage && [self rowCount] >= _limit) [self loadOlderKeepingPosition:kPage - _limit];
+    }
 }
 
 // Verdeckt (Kontaktprofil, Bildanzeige darüber) nur vormerken: neu laden heißt alles neu entschlüsseln.
@@ -255,9 +292,13 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
 // Timer halten den Controller fest, beim Verlassen Aufnahme und Wiedergabe beenden.
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
+    [self stopMedia];
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
     [[MeshSession shared] setOpenChat:nil];
     [[MeshSession shared] markReadIn:_peerHex];   // auch, was während des Lesens kam
-    [self stopMedia];
 }
 
 // Aufnahme verwerfen (nicht senden), Wiedergabe stoppen, auch beim Sperren.
@@ -451,8 +492,21 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
 }
 
 - (void)updateTitle {
+    _titleLabel.text = [MeshFormat contactName:_peerName accepted:_acceptedState == 2];
+}
+
+// Name und Annahme des Kontakts einmal je Neuladen (Zeilen, Zitate und Titel brauchen sie oft).
+// Zitate bleiben über das Neuladen erhalten, solange Name und Annahme gleich sind.
+- (void)refreshPeer {
     MeshSession *s = [MeshSession shared];
-    _titleLabel.text = [MeshFormat contactName:[s displayNameFor:_peerHex] accepted:[s isAccepted:_peerHex]];
+    NSString *name = [s displayNameFor:_peerHex] ?: @"";
+    int acc = [s isAccepted:_peerHex] ? 2 : 1;
+    NSString *me = [s myPubkeyHex] ?: @"";
+    if (acc != _acceptedState || ![name isEqualToString:_peerName] || ![me isEqualToString:_identity]) [_quotes removeAllObjects];
+    _peerName = name;
+    _acceptedState = acc;
+    _identity = me;
+    [_cardKnown removeAllObjects];
 }
 
 - (void)openPeer { [self.navigationController pushViewController:[[PeerProfileViewController alloc] initWithPeer:_peerHex] animated:YES]; }
@@ -479,6 +533,8 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     if (!jpeg.length) { *loading = NO; return nil; }   // nichts da: Platzhalter, aber nicht dauerhaft merken
     [_imgPending addObject:k];
     long long rowId = m.rowId;
+    BOOL fromMe = m.fromMe;
+    CGFloat width = _table.bounds.size.width, scale = [UIScreen mainScreen].scale;
     MESH_WEAK ChatViewController *weakSelf = self;
     // Eine Warteschlange, niedrige Priorität: der A4 hat einen Kern, die Wechsel-Animation geht vor.
     static dispatch_queue_t q; static dispatch_once_t once;
@@ -488,7 +544,9 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     });
     dispatch_async(q, ^{
         UIImage *decoded = [MeshImageCodec imageFromData:jpeg formats:MeshImageJPEG];
-        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf imageReady:decoded row:rowId]; });
+        // gleich in Anzeigegröße mit runden Ecken: die Zelle muss weder skalieren noch ausschneiden
+        UIImage *shown = decoded ? [MeshBubbleCell photoForBubble:decoded tableWidth:width fromMe:fromMe scale:scale] : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf imageReady:shown row:rowId]; });
     });
     return nil;
 }
@@ -546,9 +604,12 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     [_thumbPending addObject:@(m.rowId)];
     NSData *mp4 = [[MeshSession shared] payloadOf:m].data;   // Store nur auf dem Main-Thread
     long long rowId = m.rowId;
+    BOOL fromMe = m.fromMe;
+    CGFloat scale = [UIScreen mainScreen].scale;
     MESH_WEAK ChatViewController *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
         UIImage *thumb = [MeshFileViewer isVideo:mp4 mime:@"video/mp4"] ? [MeshVideoCodec thumbnailOfMP4:mp4 maxSide:440] : nil;
+        if (thumb) thumb = [MeshBubbleCell videoThumbForBubble:thumb fromMe:fromMe scale:scale];
         dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf thumbReady:thumb row:rowId]; });
     });
     return nil;
@@ -598,7 +659,9 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     MeshSession *s = [MeshSession shared];
     NSString *pk = [s pubkeyOfContactCode:card.code] ?: @"";
     NSString *name = MeshCleanName(card.text);
-    return @[name.length ? name : L(@"Contact"), pk, @(pk.length && [s isAccepted:pk])];
+    NSNumber *known = pk.length ? _cardKnown[pk] : @NO;
+    if (!known) _cardKnown[pk] = known = @([s isAccepted:pk]);   // je Neuladen einmal je Kontakt
+    return @[name.length ? name : L(@"Contact"), pk, known];
 }
 
 - (void)offerContactCard:(MeshMessage *)m {
@@ -639,16 +702,20 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
 
 - (void)reload {
     _stale = NO;
+    [self refreshPeer];
     [self updateTitle];
     [self updateBadge];   // der Kontakt kann den Timer geändert haben
     BOOL wasAtBottom = [self nearBottom];
-    // Unten angekommen: wieder nur die neuesten laden, sonst entschlüsselt jedes Neuladen alles Nachgeladene
-    if (!_limit || (wasAtBottom && _initialScroll)) _limit = kPage;
-    if (!_heights) _heights = [NSMutableDictionary dictionary];
-    int acc = [[MeshSession shared] isAccepted:_peerHex] ? 2 : 1;
-    if (acc != _acceptedState) { [_heights removeAllObjects]; _acceptedState = acc; }
+    if (!_limit) {
+        // Öffnen: erst wenige (schnell durch die Animation), den Rest bis kPage lädt viewDidAppear.
+        // Liegt die Trennlinie weiter zurück, gleich kPage, damit sie wie bisher oben stehen kann.
+        NSUInteger unread = _readAt > 0 ? [[MeshSession shared] messageCountAfter:_readAt in:_peerHex] : 0;
+        _limit = unread + 1 <= kFirstPage ? kFirstPage : kPage;
+    } else if (wasAtBottom && _initialScroll) {
+        _limit = kPage;   // unten angekommen: wieder nur die neuesten, sonst entschlüsselt jedes Neuladen alles Nachgeladene
+    }
     _messages = [self withDivider:[[MeshSession shared] messagesWith:_peerHex limit:_limit]];
-    [_quotes removeAllObjects];
+    [self checkQuotes];
     _media = nil;
     [_table reloadData];
     if (!_initialScroll) {
@@ -682,6 +749,14 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     NSMutableArray *out = [list mutableCopy];
     [out insertObject:d atIndex:first];
     return out;
+}
+
+// Gemerkte Zitate prüfen, ohne zu entschlüsseln: gelöschte oder abgelaufene Nachrichten dürfen nicht
+// weiter im Zitat stehen, eine inzwischen angekommene soll erscheinen.
+- (void)checkQuotes {
+    MeshSession *s = [MeshSession shared];
+    for (NSString *key in [_quotes allKeys])
+        if (![_quotes[key][2] boolValue] || ![s hasMessage:key in:_peerHex]) [_quotes removeObjectForKey:key];
 }
 
 // Geladene Datenbankzeilen (ohne die Trennlinie).
@@ -757,13 +832,17 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
 
 // Ganz oben angekommen: die nächsten 80 älteren Nachrichten davorsetzen, die Ansicht bleibt an derselben Stelle
 - (void)scrollViewDidScroll:(UIScrollView *)sv {
-    if (sv != _table || _loadingOlder || sv.contentOffset.y > 40 || [self rowCount] < _limit) return;
+    if (sv != _table || !_appeared || _loadingOlder || sv.contentOffset.y > 40 || [self rowCount] < _limit) return;
+    [self loadOlderKeepingPosition:kPage];
+}
+
+- (void)loadOlderKeepingPosition:(NSUInteger)count {
     _loadingOlder = YES;
-    CGFloat oldH = sv.contentSize.height, oldY = sv.contentOffset.y;
-    [self prependOlder:kPage];
+    CGFloat oldH = _table.contentSize.height, oldY = _table.contentOffset.y;
+    [self prependOlder:count];
     [_table reloadData];
     [_table layoutIfNeeded];
-    sv.contentOffset = CGPointMake(0, oldY + (sv.contentSize.height - oldH));
+    _table.contentOffset = CGPointMake(0, oldY + (_table.contentSize.height - oldH));
     _loadingOlder = NO;
 }
 
@@ -815,7 +894,7 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
 - (MeshPayloadKind)bubbleFor:(MeshMessage *)m imageSize:(CGSize *)size text:(NSString **)text {
     MeshPayloadKind kind = m.kind;
     if (m.rowId == kDividerRow) { *text = m.content; return MeshPayloadNotice; }
-    if (kind == MeshPayloadNotice) { *text = [MeshFormat notice:m.content peer:[[MeshSession shared] displayNameFor:_peerHex]]; return kind; }
+    if (kind == MeshPayloadNotice) { *text = [MeshFormat notice:m.content peer:_peerName]; return kind; }
     if (kind == MeshPayloadVoice) return kind;
     if (kind == MeshPayloadImage && [self imageSize:size ofMessage:m]) return kind;
     if (kind == MeshPayloadFile && [self mayShowMediaOf:m]) return kind;
@@ -833,7 +912,7 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     NSArray *quote = _quotes[m.replyTo];
     if (!quote) {
         MeshMessage *q = [[MeshSession shared] message:m.replyTo in:_peerHex];
-        quote = @[ !q ? @"" : q.fromMe ? L(@"You") : [[MeshSession shared] displayNameFor:_peerHex], [self snippetOf:q] ];
+        quote = @[ !q ? @"" : q.fromMe ? L(@"You") : _peerName, [self snippetOf:q], @(q != nil) ];
         _quotes[m.replyTo] = quote;
     }
     *author = quote[0];
@@ -845,13 +924,39 @@ static NSString *reactionsOf(MeshMessage *m) {
     return [NSString stringWithFormat:@"%@%@", m.reactPeer ?: @"", m.reactMine ?: @""];
 }
 
+// Zeilenhöhen für alle Chats gemeinsam: erneutes Öffnen misst nichts neu. Der Schlüssel enthält alles,
+// was die Höhe ändert: Identität und Kontakt (Zeilennummern gelten je Datenbank), Zeile, Art, Status,
+// Reaktionen, Breite, Bildmaße bzw. Datei-Art, Annahme; bei Hinweisen den Text, bei Kontaktkarten,
+// ob es eine Aktionszeile gibt. Beim Sperren und Identitätswechsel geleert (enthält Pubkeys).
+static NSCache *Heights(void) {
+    static NSCache *cache; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        cache = [[NSCache alloc] init];
+        cache.countLimit = 3000;
+        for (NSString *name in @[MeshWillLockNotification, MeshIdentityChangedNotification, MeshWipedNotification])
+            [[NSNotificationCenter defaultCenter] addObserverForName:name object:nil queue:nil
+                                                          usingBlock:^(NSNotification *n) { [cache removeAllObjects]; }];
+    });
+    return cache;
+}
+
 - (CGFloat)tableView:(UITableView *)t heightForRowAtIndexPath:(NSIndexPath *)ip {
     MeshMessage *m = _messages[ip.row];
-    NSString *hk = [NSString stringWithFormat:@"%lld|%d|%d|%@|%.0f|%d", m.rowId, (int)m.kind, m.status, reactionsOf(m), t.bounds.size.width, m.width];
-    NSNumber *known = _heights[hk];
+    NSString *extra = @"";
+    if (m.rowId == kDividerRow || m.kind == MeshPayloadNotice) {
+        CGSize size; NSString *text = nil;
+        [self bubbleFor:m imageSize:&size text:&text];
+        extra = text ?: @"";
+    } else if (m.kind == MeshPayloadContact) {
+        NSArray *card = [self cardOf:m];
+        extra = (!m.fromMe && [card[1] length] && ([card[2] boolValue] || _acceptedState == 2)) ? @"a" : @"-";
+    }
+    NSString *hk = [NSString stringWithFormat:@"%@|%@|%lld|%d|%d|%@|%.0f|%d|%d|%d|%d|%@", _identity, _peerHex, m.rowId, (int)m.kind,
+                    m.status, reactionsOf(m), t.bounds.size.width, m.width, m.height, _acceptedState, m.replyTo.length > 0, extra];
+    NSNumber *known = [Heights() objectForKey:hk];
     if (known) return known.floatValue;
     CGFloat h = [self measureRow:m width:t.bounds.size.width];
-    _heights[hk] = @(h);
+    [Heights() setObject:@(h) forKey:hk];
     return h;
 }
 
@@ -865,7 +970,7 @@ static NSString *reactionsOf(MeshMessage *m) {
         case MeshPayloadImage:  base = [MeshBubbleCell heightForImageOfSize:size width:w]; break;
         case MeshPayloadContact: {
             NSArray *card = [self cardOf:m];
-            BOOL action = !m.fromMe && [card[1] length] && ([card[2] boolValue] || [[MeshSession shared] isAccepted:_peerHex]);
+            BOOL action = !m.fromMe && [card[1] length] && ([card[2] boolValue] || _acceptedState == 2);
             base = [MeshBubbleCell heightForContactCardWithAction:action];
             break;
         }
@@ -912,7 +1017,7 @@ static NSString *reactionsOf(MeshMessage *m) {
         }
         case MeshPayloadContact: {
             NSArray *card = [self cardOf:m];
-            BOOL known = [card[2] boolValue], action = !m.fromMe && [card[1] length] && (known || [[MeshSession shared] isAccepted:_peerHex]);
+            BOOL known = [card[2] boolValue], action = !m.fromMe && [card[1] length] && (known || _acceptedState == 2);
             [cell setContactCard:card[0] pubkey:card[1] action:action ? (known ? L(@"Open chat") : L(@"Add")) : nil
                            glyph:known ? @"chat" : @"add" fromMe:m.fromMe status:m.status width:w];
             break;

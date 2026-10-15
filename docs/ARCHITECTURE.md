@@ -189,6 +189,14 @@ Schema-Version (`PRAGMA user_version`): 3. Ältere Datenbanken werden beim erste
 umgeschlüsselt. Dass die Datenbank versiegelt ist, steht zusätzlich im Schlüsselbund — eine
 zurückgesetzte `user_version` führt deshalb nicht dazu, dass Klartext wieder angenommen wird.
 
+Inhalte von Bild, Sprache und Datei liegen (gleich versiegelt, gleicher Kontext) in `message_blobs`
+(rowid = `messages.rowid`), `messages.content` ist für sie leer: sonst stünden 100–700 KB vor den
+kleinen Spalten jeder Zeile, und schon `kind` oder `ts` zu lesen hieße, deren Überlaufseiten
+abzulaufen. Ein Trigger löscht den Inhalt mit der Zeile. Ältere Datenbanken zieht
+`moveMediaStep` nach dem Entsperren in kleinen Schritten um (je eine Transaktion samt Fortschritt in
+`meta`; abgebrochen gilt das Übertragene, der Rest wird weiter aus `messages` gelesen); danach
+entstehen die Indizes, die Spalten hinter dem Inhalt lesen.
+
 ## Eingaben von außen
 
 Alles vom Relay gilt als feindlich:

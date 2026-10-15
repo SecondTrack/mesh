@@ -5,6 +5,7 @@
 #import "MeshGlyphs.h"
 #import "MeshImageCodec.h"
 #import "MeshProfile.h"
+#import "MeshNotifications.h"
 
 @implementation MeshAvatarView {
     UIImage *_image;     // aufgelöstes Profilbild; einmal je Pubkey/Bild, nicht bei jedem Zeichnen
@@ -18,7 +19,7 @@
         self.opaque = NO;
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
         if (source != MeshAvatarIdenticon)
-            [nc addObserver:self selector:@selector(invalidate) name:MeshProfilesChangedNotification object:nil];
+            [nc addObserver:self selector:@selector(profilesChanged:) name:MeshProfilesChangedNotification object:nil];
         [nc addObserver:self selector:@selector(forget) name:MeshWillLockNotification object:nil];
     }
     return self;
@@ -47,6 +48,13 @@
 
 - (void)forget { _image = nil; _resolved = NO; }   // beim Sperren: kein entschlüsseltes Bild halten
 
+// Nur neu zeichnen, wenn es um diesen Pubkey geht (bzw. ums eigene Profil); ohne Angabe immer.
+- (void)profilesChanged:(NSNotification *)n {
+    NSString *pk = n.userInfo[MeshProfilePubkey];
+    if (!pk || [pk isEqualToString:_pubkey] || (_source == MeshAvatarSelf && [pk isEqualToString:[[MeshSession shared] myPubkeyHex]]))
+        [self invalidate];
+}
+
 // Rund zeichnet drawRect selbst (Bild, Platzhalter und Identicon clippen auf den Kreis). Der Radius bleibt
 // für Rahmen (Plakette mit Ring), aber ohne clipsToBounds: Ausschneiden hieße am A4 einen eigenen
 // Offscreen-Durchgang pro Avatar und Frame.
@@ -58,29 +66,57 @@
 static const CGFloat kLargeSide = 640;   // Vollbild-Avatar: Bildschirmbreite in Pixeln
 
 // Aufgelöste Profilbilder je Quelle und Pubkey (NSNull = keins), damit wiederverwendete Zellen
-// nicht bei jedem Scrollen Datenbank, Entschlüsseln und Dekodieren anstoßen. Beim Sperren, bei
-// Profiländerungen und bei Speicherwarnung geleert; nach Pixeln begrenzt.
-static NSCache *ResolvedCache(void) {
-    static NSCache *cache;
+// nicht bei jedem Scrollen Datenbank, Entschlüsseln und Dekodieren anstoßen; dazu die fertig
+// runden Bitmaps je Größe, damit drawRect nicht bei jeder Wiederverwendung skaliert und clippt.
+// Beim Sperren, Identitätswechsel und bei Speicherwarnung geleert; nach Pixeln begrenzt. Eine
+// Profiländerung erhöht nur die Generation dieses Pubkeys (steht im Schlüssel): dessen alte
+// Einträge gelten nicht mehr, alle anderen bleiben.
+static NSCache *ResolvedCache, *CircleCache;
+static NSMutableDictionary *Generations;   // Pubkey -> NSNumber
+static NSUInteger SelfGeneration;          // eigenes Profil (Quelle MeshAvatarSelf)
+
+static void SetUpCaches(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        cache = [[NSCache alloc] init];
-        cache.countLimit = 64;
-        cache.totalCostLimit = 8 * 1024 * 1024;
+        ResolvedCache = [[NSCache alloc] init];
+        ResolvedCache.countLimit = 64;
+        ResolvedCache.totalCostLimit = 8 * 1024 * 1024;
+        CircleCache = [[NSCache alloc] init];
+        CircleCache.countLimit = 96;
+        CircleCache.totalCostLimit = 4 * 1024 * 1024;
+        Generations = [NSMutableDictionary dictionary];
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-        for (NSString *name in @[MeshWillLockNotification, MeshProfilesChangedNotification, UIApplicationDidReceiveMemoryWarningNotification])
-            [nc addObserverForName:name object:nil queue:nil usingBlock:^(NSNotification *n) { [cache removeAllObjects]; }];
+        for (NSString *name in @[MeshWillLockNotification, MeshIdentityChangedNotification, UIApplicationDidReceiveMemoryWarningNotification])
+            [nc addObserverForName:name object:nil queue:nil usingBlock:^(NSNotification *n) {
+                [ResolvedCache removeAllObjects];
+                [CircleCache removeAllObjects];
+                [Generations removeAllObjects];
+            }];
+        [nc addObserverForName:MeshProfilesChangedNotification object:nil queue:nil usingBlock:^(NSNotification *n) {
+            NSString *pk = n.userInfo[MeshProfilePubkey];
+            if (!pk) { [ResolvedCache removeAllObjects]; [CircleCache removeAllObjects]; return; }
+            Generations[pk] = @([Generations[pk] unsignedIntegerValue] + 1);
+            if ([pk isEqualToString:[[MeshSession shared] myPubkeyHex]]) SelfGeneration++;
+        }];
     });
-    return cache;
+}
+
+static NSString *CacheKey(MeshAvatarSource source, NSString *pubkey) {
+    SetUpCaches();
+    NSUInteger gen = source == MeshAvatarSelf ? SelfGeneration : [Generations[pubkey ?: @""] unsignedIntegerValue];
+    return [NSString stringWithFormat:@"%ld|%@|%lu", (long)source, pubkey ?: @"", (unsigned long)gen];
+}
+
+static NSUInteger PixelCost(UIImage *img) {
+    return img ? (NSUInteger)(img.size.width * img.size.height * img.scale * img.scale * 4) : 0;
 }
 
 + (UIImage *)pictureForSource:(MeshAvatarSource)source pubkey:(NSString *)pubkey {
-    NSString *key = [NSString stringWithFormat:@"%ld|%@", (long)source, pubkey ?: @""];
-    id hit = [ResolvedCache() objectForKey:key];
+    NSString *key = CacheKey(source, pubkey);
+    id hit = [ResolvedCache objectForKey:key];
     if (hit) return hit == [NSNull null] ? nil : hit;
     UIImage *img = [MeshImageCodec imageFromPicture:[self storedPictureForSource:source pubkey:pubkey]];
-    [ResolvedCache() setObject:(img ?: (id)[NSNull null]) forKey:key
-                          cost:img ? (NSUInteger)(img.size.width * img.size.height * img.scale * img.scale * 4) : 0];
+    [ResolvedCache setObject:(img ?: (id)[NSNull null]) forKey:key cost:PixelCost(img)];
     return img;
 }
 
@@ -123,13 +159,27 @@ static NSCache *ResolvedCache(void) {
     if (!img && _source == MeshAvatarIdenticon) { [MeshIdenticon drawSeed:_pubkey inRect:b context:ctx]; return; }
     if (!img) { [MeshAvatarView drawPlaceholderInRect:b context:ctx]; return; }
 
-    // Aspect-fill in den Kreis.
+    // Fertiger Kreis aus dem Cache (nicht für eine Vorschau mit gesetztem picture)
+    NSString *key = _picture.length ? nil : [NSString stringWithFormat:@"%@|%.0f|%.0f", CacheKey(_source, _pubkey), b.size.width, b.size.height];
+    UIImage *circle = key ? [CircleCache objectForKey:key] : nil;
+    if (!circle) {
+        UIGraphicsBeginImageContextWithOptions(b.size, NO, 0);   // gleiche Auflösung wie die Ansicht
+        [MeshAvatarView drawCircle:img inRect:CGRectMake(0, 0, b.size.width, b.size.height) context:UIGraphicsGetCurrentContext()];
+        circle = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+        if (key && circle) [CircleCache setObject:circle forKey:key cost:PixelCost(circle)];
+    }
+    [circle drawInRect:b];
+}
+
+// Aspect-fill in den Kreis.
++ (void)drawCircle:(UIImage *)img inRect:(CGRect)b context:(CGContextRef)ctx {
     CGContextSaveGState(ctx);
     CGContextAddEllipseInRect(ctx, b);
     CGContextClip(ctx);
     CGFloat s = MAX(b.size.width / img.size.width, b.size.height / img.size.height);
     CGSize ds = CGSizeMake(img.size.width * s, img.size.height * s);
-    [img drawInRect:CGRectMake((b.size.width - ds.width) / 2, (b.size.height - ds.height) / 2, ds.width, ds.height)];
+    [img drawInRect:CGRectMake(b.origin.x + (b.size.width - ds.width) / 2, b.origin.y + (b.size.height - ds.height) / 2, ds.width, ds.height)];
     CGContextRestoreGState(ctx);
 }
 

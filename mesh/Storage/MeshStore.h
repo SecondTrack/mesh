@@ -63,9 +63,18 @@
 // die `limit` Nachrichten direkt vor (ts, rowId), aufsteigend – zum Nachladen älterer
 - (NSArray *)messagesForChat:(NSString *)pubkeyHex beforeTs:(long long)ts rowId:(long long)rowId limit:(NSUInteger)limit;
 - (NSUInteger)countFromKey:(NSString *)key chat:(NSString *)chat;   // Nachrichten ab der mit key (cmid/Event-ID) bis zur neuesten, 0 = keine
+- (NSUInteger)countAfterTs:(long long)ts chat:(NSString *)chat;      // Nachrichten jünger als ts (nur aus dem Index)
+- (BOOL)hasMessageWithKey:(NSString *)key chat:(NSString *)chat;    // per cmid oder Event-ID, ohne zu entschlüsseln
 // Bilder + Videos (Dateien mit width -1, unbekannte mit 0), neueste zuerst; schlank: ohne Reaktionen, Inhalt nur Marker
 - (NSArray *)mediaForChat:(NSString *)chat;
 - (NSArray *)unclassifiedFilesForChat:(NSString *)chat onlyMine:(BOOL)mine;   // Dateien mit width 0 (Art noch ungeprüft), schlank
 - (NSUInteger)mediaCountForChat:(NSString *)chat onlyMine:(BOOL)mine;        // Bilder + Videos (width -1), per COUNT
 - (NSArray *)chatList;                                 // MeshChat*, letzte Nachricht je Kontakt
+@end
+
+@interface MeshStore (MediaMove)
+// Einmalige Umstellung in kleinen Schritten (je eine Transaktion, braucht keinen Schlüssel): Medien-
+// inhalte aus messages in eine eigene Tabelle. YES = es bleibt noch etwas zu tun. Abgebrochen gilt
+// das bisher Übertragene; nicht Übertragenes liest contentOfMessage weiter aus messages.
+- (BOOL)moveMediaStep;
 @end

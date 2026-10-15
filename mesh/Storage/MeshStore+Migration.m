@@ -42,7 +42,14 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
         "CREATE TABLE IF NOT EXISTS chats(chat TEXT PRIMARY KEY, timer INTEGER NOT NULL DEFAULT 0,"
         "  timer_mode INTEGER NOT NULL DEFAULT 0, cleared INTEGER NOT NULL DEFAULT 0);"
         // Signal: Sitzungen, PreKeys, bekannte Identitäten (Werte versiegelt, siehe MeshStore+Signal).
-        "CREATE TABLE IF NOT EXISTS signal(key TEXT PRIMARY KEY, value TEXT NOT NULL);";
+        "CREATE TABLE IF NOT EXISTS signal(key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+        // Inhalte von Bild, Sprache, Datei (versiegelt wie in messages.content, gleicher Kontext); rowid = messages.rowid.
+        // Der Trigger löscht sie mit der Nachricht, in derselben Anweisung (alle Löschwege, auch Leeren und Ablauf).
+        "CREATE TABLE IF NOT EXISTS message_blobs(rowid INTEGER PRIMARY KEY, content TEXT NOT NULL);"
+        "CREATE TRIGGER IF NOT EXISTS messages_blob_delete AFTER DELETE ON messages "
+        "  BEGIN DELETE FROM message_blobs WHERE rowid=old.rowid; END;"
+        // Stand einmaliger Umstellungen (moveMediaStep).
+        "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value INTEGER NOT NULL);";
     if (sqlite3_exec(self.db, schema, NULL, NULL, NULL) != SQLITE_OK) return NO;
     // Spalten, die ältere Datenbanken noch nicht haben; fill läuft einmal direkt nach dem Anlegen.
     static const struct { const char *table, *column, *definition, *fill; } added[] = {
@@ -89,11 +96,54 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
     }
     sqlite3_exec(self.db, "CREATE INDEX IF NOT EXISTS idx_msg_cmid ON messages(chat, cmid);"
                           "CREATE INDEX IF NOT EXISTS idx_msg_expires ON messages(expires);", NULL, NULL, NULL);
+    // Neue oder leere Datenbank: nichts umzuziehen, die Indizes gleich anlegen
+    sqlite3_stmt *any = [self prepare:"SELECT 1 FROM messages LIMIT 1"];
+    BOOL empty = any && sqlite3_step(any) != SQLITE_ROW;
+    sqlite3_finalize(any);
+    if (empty && ![self metaValue:"media_moved"]) [self finishMediaMove];
     sqlite3_stmt *v = [self prepare:"PRAGMA user_version"];
     self.migrated = v && sqlite3_step(v) == SQLITE_ROW && sqlite3_column_int(v, 0) >= MeshSchemaSealed;
     sqlite3_finalize(v);
     return YES;
 }
+
+#pragma mark - Medien in message_blobs
+
+- (long long)metaValue:(const char *)key {
+    sqlite3_stmt *st = [self prepare:"SELECT value FROM meta WHERE key=?"];
+    if (!st) return 0;
+    sqlite3_bind_text(st, 1, key, -1, SQLITE_STATIC);
+    long long v = sqlite3_step(st) == SQLITE_ROW ? sqlite3_column_int64(st, 0) : 0;
+    sqlite3_finalize(st);
+    return v;
+}
+
+- (BOOL)setMeta:(const char *)key value:(long long)value {
+    sqlite3_stmt *st = [self prepare:"INSERT OR REPLACE INTO meta(key, value) VALUES(?,?)"];
+    if (!st) return NO;
+    sqlite3_bind_text(st, 1, key, -1, SQLITE_STATIC);
+    sqlite3_bind_int64(st, 2, value);
+    BOOL ok = sqlite3_step(st) == SQLITE_DONE;
+    sqlite3_finalize(st);
+    return ok;
+}
+
+// Abschluss: Indizes über Spalten hinter content bzw. pic. Erst jetzt und nicht beim Öffnen, weil
+// das Anlegen jede Medienzeile ganz lesen müsste (am A4 beim Start zu lang). Eine Transaktion.
+- (BOOL)finishMediaMove {
+    BOOL ok = sqlite3_exec(self.db, "BEGIN", NULL, NULL, NULL) == SQLITE_OK
+        && sqlite3_exec(self.db, "CREATE INDEX IF NOT EXISTS idx_msg_timers ON messages(chat, from_me, expires, timer);"   // startTimersInChat
+                                 "CREATE INDEX IF NOT EXISTS idx_msg_media ON messages(chat, kind, width, from_me);"        // Galerie zählen
+                                 // isAccepted und Chatliste lesen accepted aus dem Index statt hinter dem Profilbild
+                                 "CREATE INDEX IF NOT EXISTS idx_contacts_accepted ON contacts(pubkey, accepted);",
+                        NULL, NULL, NULL) == SQLITE_OK
+        && [self setMeta:"media_moved" value:1];
+    if (ok && sqlite3_exec(self.db, "COMMIT", NULL, NULL, NULL) == SQLITE_OK) return YES;
+    sqlite3_exec(self.db, "ROLLBACK", NULL, NULL, NULL);
+    return NO;
+}
+
+#pragma mark - Versiegeln
 
 // Ältere Werte (Klartext, enc1, enc2 aus Schema 2) ins aktuelle Format überführen. Als erledigt
 // gilt die Migration nach erfolgreichem COMMIT; danach räumt VACUUM frei gewordene Seiten auf.
@@ -101,9 +151,13 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
     if (self.migrated) return;
     BOOL ok = sqlite3_exec(self.db, "BEGIN", NULL, NULL, NULL) == SQLITE_OK;
 
-    sqlite3_stmt *sel = [self prepare:"SELECT rowid, chat, content, kind, secs, from_me, event_id FROM messages"];
+    // Medien können schon in message_blobs liegen (neu eingefügt oder umgezogen): dort neu versiegeln.
+    sqlite3_stmt *sel = [self prepare:"SELECT m.rowid, m.chat, COALESCE(b.content, m.content), m.kind, m.secs, m.from_me, m.event_id, "
+                                      "b.rowid IS NOT NULL FROM messages m LEFT JOIN message_blobs b ON b.rowid=m.rowid"];
     sqlite3_stmt *upd = [self prepare:"UPDATE messages SET content=?, kind=?, secs=? WHERE rowid=?"];
-    ok = ok && sel && upd;
+    sqlite3_stmt *updMeta = [self prepare:"UPDATE messages SET kind=?2, secs=?3 WHERE rowid=?4"];
+    sqlite3_stmt *updBlob = [self prepare:"UPDATE message_blobs SET content=?1 WHERE rowid=?4"];
+    ok = ok && sel && upd && updMeta && updBlob;
     while (ok && sqlite3_step(sel) == SQLITE_ROW) {
         NSString *chat = columnText(sel, 1), *stored = columnText(sel, 2), *eventId = columnText(sel, 6);
         NSString *plain = [MeshSeal isSealed:stored]
@@ -112,14 +166,25 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
         if (!plain) continue;   // manipuliert oder bereits aktuell (enc2 aus Schema 3 öffnet mit V2 nicht)
         MeshPayload *p = [MeshPayload parse:plain];
         NSString *sealed = [self seal:plain context:messageContext(chat, (int)p.kind, p.seconds, sqlite3_column_int(sel, 5) != 0, eventId)];
+        long long rowId = sqlite3_column_int64(sel, 0);
+        if (sqlite3_column_int(sel, 7)) {   // Inhalt in message_blobs, Art und Länge in messages
+            bindText(updBlob, 1, sealed);
+            sqlite3_bind_int64(updBlob, 4, rowId);
+            sqlite3_bind_int(updMeta, 2, (int)p.kind);
+            sqlite3_bind_int(updMeta, 3, p.seconds);
+            sqlite3_bind_int64(updMeta, 4, rowId);
+            ok = sealed && sqlite3_step(updBlob) == SQLITE_DONE && sqlite3_step(updMeta) == SQLITE_DONE;
+            sqlite3_reset(updBlob); sqlite3_reset(updMeta);
+            continue;
+        }
         bindText(upd, 1, sealed);
         sqlite3_bind_int(upd, 2, (int)p.kind);
         sqlite3_bind_int(upd, 3, p.seconds);
-        sqlite3_bind_int64(upd, 4, sqlite3_column_int64(sel, 0));
+        sqlite3_bind_int64(upd, 4, rowId);
         ok = sealed && sqlite3_step(upd) == SQLITE_DONE;
         sqlite3_reset(upd);
     }
-    sqlite3_finalize(sel); sqlite3_finalize(upd);
+    sqlite3_finalize(sel); sqlite3_finalize(upd); sqlite3_finalize(updMeta); sqlite3_finalize(updBlob);
 
     const char *contactColumns[] = { "name", "pname", "pic" }, *profileColumns[] = { "name", "about", "pic" };
     for (int table = 0; table < 2 && ok; table++) {
@@ -149,6 +214,68 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
     if (!ok || sqlite3_exec(self.db, "COMMIT", NULL, NULL, NULL) != SQLITE_OK) { sqlite3_exec(self.db, "ROLLBACK", NULL, NULL, NULL); return; }
     self.migrated = YES;
     sqlite3_exec(self.db, "VACUUM", NULL, NULL, NULL);   // Altes aus freien Seiten entfernen (bestmöglich)
+}
+
+@end
+
+@implementation MeshStore (MediaMove)
+
+// Ein Schritt: die nächsten Zeilen nach rowid (bis ~64 KB Medien oder 20 Zeilen) lesen, die
+// Medieninhalte unverändert (versiegelt, gleicher Kontext) nach message_blobs kopieren und erst
+// danach messages.content leeren, alles in einer Transaktion samt Fortschritt. Wird die App
+// mittendrin beendet, rollt sqlite den Schritt zurück: die Zeilen stehen dann noch vollständig in
+// messages und werden beim nächsten Mal wieder übernommen (INSERT OR REPLACE, idempotent).
+- (BOOL)moveMediaStep {
+    if ([self metaValue:"media_moved"]) return NO;
+    long long from = [self metaValue:"media_scan"], last = from;
+    NSMutableArray *rows = [NSMutableArray array], *contents = [NSMutableArray array];
+    sqlite3_stmt *sel = [self prepare:"SELECT rowid, kind, content FROM messages WHERE rowid > ? ORDER BY rowid"];
+    if (!sel) return NO;
+    sqlite3_bind_int64(sel, 1, from);
+    NSUInteger bytes = 0, seen = 0;
+    while (bytes < 64 * 1024 && seen < 20 && sqlite3_step(sel) == SQLITE_ROW) {
+        seen++;
+        last = sqlite3_column_int64(sel, 0);
+        int kind = sqlite3_column_int(sel, 1);
+        if (kind != 1 && kind != 2 && kind != 3) continue;   // MeshPayloadImage, Voice, File
+        NSData *raw = columnBlob(sel, 2);   // Bytes wie gespeichert, ohne Umweg über NSString
+        if (!raw.length) continue;          // schon umgezogen oder neu eingefügt
+        [rows addObject:@(last)];
+        [contents addObject:raw];
+        bytes += raw.length;
+    }
+    sqlite3_finalize(sel);
+    if (!seen) return ![self finishMediaMove];   // alles durch
+
+    BOOL ok = sqlite3_exec(self.db, "BEGIN", NULL, NULL, NULL) == SQLITE_OK;
+    sqlite3_stmt *copy = ok ? [self prepare:"INSERT OR REPLACE INTO message_blobs(rowid, content) VALUES(?,?)"] : NULL;
+    // Nur leeren, was genau so kopiert wurde
+    sqlite3_stmt *clear = ok ? [self prepare:"UPDATE messages SET content='' WHERE rowid=?1 AND content=?2"] : NULL;
+    sqlite3_stmt *undo = ok ? [self prepare:"DELETE FROM message_blobs WHERE rowid=?"] : NULL;
+    ok = ok && copy && clear && undo;
+    for (NSUInteger i = 0; ok && i < rows.count; i++) {
+        long long rowId = [rows[i] longLongValue];
+        NSData *raw = contents[i];
+        sqlite3_bind_int64(copy, 1, rowId);
+        sqlite3_bind_text(copy, 2, raw.bytes, (int)raw.length, SQLITE_STATIC);
+        ok = sqlite3_step(copy) == SQLITE_DONE;
+        sqlite3_reset(copy);
+        sqlite3_bind_int64(clear, 1, rowId);
+        sqlite3_bind_text(clear, 2, raw.bytes, (int)raw.length, SQLITE_STATIC);
+        ok = ok && sqlite3_step(clear) == SQLITE_DONE;
+        BOOL cleared = sqlite3_changes(self.db) > 0;
+        sqlite3_reset(clear);
+        if (ok && !cleared) {   // inzwischen anders (kann nicht vorkommen): die Kopie nicht gelten lassen
+            sqlite3_bind_int64(undo, 1, rowId);
+            ok = sqlite3_step(undo) == SQLITE_DONE;
+            sqlite3_reset(undo);
+        }
+    }
+    sqlite3_finalize(copy); sqlite3_finalize(clear); sqlite3_finalize(undo);
+    ok = ok && [self setMeta:"media_scan" value:last];
+    if (ok && sqlite3_exec(self.db, "COMMIT", NULL, NULL, NULL) == SQLITE_OK) return YES;
+    sqlite3_exec(self.db, "ROLLBACK", NULL, NULL, NULL);
+    return NO;   // später erneut (nächstes Entsperren), nicht in einer Schleife
 }
 
 @end

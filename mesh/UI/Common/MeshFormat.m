@@ -1,4 +1,5 @@
 #import "MeshFormat.h"
+#import <UIKit/UIKit.h>
 #import "MeshPayload.h"
 #import "MeshL10n.h"
 #import "MeshText.h"
@@ -15,11 +16,23 @@ static const NSUInteger kPreviewMax = 80;
         date = [[NSDateFormatter alloc] init];   // Tag und Monat in der Reihenfolge der Region
         date.dateFormat = [NSDateFormatter dateFormatFromTemplate:@"ddMM" options:0 locale:[NSLocale currentLocale]];
     }
-    NSDate *d = [NSDate dateWithTimeIntervalSince1970:ts];
-    NSCalendar *cal = [NSCalendar currentCalendar];
-    NSUInteger units = NSDayCalendarUnit | NSMonthCalendarUnit | NSYearCalendarUnit;
-    BOOL today = [[cal components:units fromDate:d] isEqual:[cal components:units fromDate:[NSDate date]]];
-    return [(today ? time : date) stringFromDate:d];
+    // Heute = [dayStart, dayEnd) in der aktuellen Zeitzone; neu berechnet beim Tageswechsel und bei
+    // Zeit-/Zeitzonenänderung (statt Kalender und Datumsteile für jede Zeile).
+    static NSTimeInterval dayStart, dayEnd;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationSignificantTimeChangeNotification object:nil
+                                                           queue:nil usingBlock:^(NSNotification *n) { dayEnd = 0; }];
+    });
+    NSDate *now = [NSDate date];
+    if (now.timeIntervalSince1970 < dayStart || now.timeIntervalSince1970 >= dayEnd) {
+        NSDate *start = nil; NSTimeInterval length = 0;
+        [[NSCalendar currentCalendar] rangeOfUnit:NSDayCalendarUnit startDate:&start interval:&length forDate:now];
+        dayStart = start.timeIntervalSince1970;
+        dayEnd = dayStart + length;
+    }
+    BOOL today = ts >= dayStart && ts < dayEnd;
+    return [(today ? time : date) stringFromDate:[NSDate dateWithTimeIntervalSince1970:ts]];
 }
 
 + (NSString *)duration:(int)seconds {

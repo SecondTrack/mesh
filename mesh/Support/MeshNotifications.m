@@ -4,6 +4,7 @@ NSString *const MeshMessagesChangedNotification   = @"MeshMessagesChanged";
 NSString *const MeshConnectionChangedNotification = @"MeshConnectionChanged";
 NSString *const MeshTransportChangedNotification  = @"MeshTransportChanged";
 NSString *const MeshProfilesChangedNotification   = @"MeshProfilesChanged";
+NSString *const MeshProfilePubkey                 = @"pubkey";
 NSString *const MeshWillLockNotification          = @"MeshWillLock";
 NSString *const MeshWipedNotification             = @"MeshWiped";
 NSString *const MeshIdentityChangedNotification   = @"MeshIdentityChanged";

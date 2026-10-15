@@ -25,16 +25,22 @@
     return bold ? [UIFont boldSystemFontOfSize:sz] : [UIFont systemFontOfSize:sz];
 }
 
-+ (UIFont *)titleFont   { return [self font:@"HelveticaNeue-Bold"   size:20.0f fallbackBold:YES]; }
-+ (UIFont *)nameFont    { return [self font:@"HelveticaNeue-Medium" size:16.0f fallbackBold:YES]; }  // SemiBold ~ Medium
-+ (UIFont *)bodyFont    { return [self font:@"HelveticaNeue"        size:15.0f fallbackBold:NO];  }
-+ (UIFont *)previewFont { return [self font:@"HelveticaNeue"        size:14.0f fallbackBold:NO];  }
-+ (UIFont *)labelFont   { return [self font:@"HelveticaNeue-Medium" size:11.0f fallbackBold:YES]; }
-+ (UIFont *)timeFont    { return [self font:@"HelveticaNeue"        size:11.0f fallbackBold:NO];  }
-+ (UIFont *)monoFont    { return [self font:@"Menlo-Regular"        size:12.0f fallbackBold:NO];  }
-+ (UIFont *)monoBigFont { return [self font:@"Menlo"               size:14.0f fallbackBold:NO];  }
-+ (UIFont *)keypadFont  { return [UIFont systemFontOfSize:26.0f]; }
-+ (UIFont *)brandFont   { return [self font:@"HelveticaNeue-Bold"   size:26.0f fallbackBold:YES]; }
+// Einmal angelegt: fontWithName: sucht jedes Mal neu, und Zellen fragen bei jedem Füllen.
+#define MESH_FONT(SEL, MAKE) + (UIFont *)SEL { \
+    static UIFont *f; static dispatch_once_t once; \
+    dispatch_once(&once, ^{ f = MAKE; }); \
+    return f; }
+
+MESH_FONT(titleFont,   [self font:@"HelveticaNeue-Bold"   size:20.0f fallbackBold:YES])
+MESH_FONT(nameFont,    [self font:@"HelveticaNeue-Medium" size:16.0f fallbackBold:YES])   // SemiBold ~ Medium
+MESH_FONT(bodyFont,    [self font:@"HelveticaNeue"        size:15.0f fallbackBold:NO])
+MESH_FONT(previewFont, [self font:@"HelveticaNeue"        size:14.0f fallbackBold:NO])
+MESH_FONT(labelFont,   [self font:@"HelveticaNeue-Medium" size:11.0f fallbackBold:YES])
+MESH_FONT(timeFont,    [self font:@"HelveticaNeue"        size:11.0f fallbackBold:NO])
+MESH_FONT(monoFont,    [self font:@"Menlo-Regular"        size:12.0f fallbackBold:NO])
+MESH_FONT(monoBigFont, [self font:@"Menlo"               size:14.0f fallbackBold:NO])
+MESH_FONT(keypadFont,  [UIFont systemFontOfSize:26.0f])
+MESH_FONT(brandFont,   [self font:@"HelveticaNeue-Bold"   size:26.0f fallbackBold:YES])
 
 + (CGFloat)cardRadius  { return 14.0f; }
 + (CGFloat)fieldRadius { return 12.0f; }

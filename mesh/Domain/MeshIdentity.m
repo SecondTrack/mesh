@@ -71,6 +71,7 @@ static NSString *const kSlots = @"mesh.identities", *const kActive = @"mesh.acti
 
 - (void)lock {
     [_keys wipe]; _keys = nil;
+    [_messenger wipeKeys];
     _messenger = nil;
     _signal = nil;
     _vault.deviceSecret = nil;

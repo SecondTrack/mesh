@@ -32,6 +32,8 @@
     UILabel *_searchHint;
     NSDictionary *_identityPictures;   // Nummer -> Profilbild der eigenen Identität
     BOOL _loaded, _stale;     // _stale: verdeckt geändert, beim nächsten Erscheinen neu laden
+    BOOL _prepared;           // verdeckt schon neu gelesen: beim Erscheinen nur noch die Tabelle füllen
+    BOOL _prepareQueued;      // prepareHidden steht an
 }
 
 - (void)loadView {
@@ -101,7 +103,9 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    for (NSString *name in @[MeshMessagesChangedNotification, MeshIdentityChangedNotification, MeshProfilesChangedNotification])
+    // Profiländerungen kommen immer zusammen mit MeshMessagesChangedNotification (gebündelt); die
+    // Avatare zeichnen sich selbst neu.
+    for (NSString *name in @[MeshMessagesChangedNotification, MeshIdentityChangedNotification])
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(messagesChanged) name:name object:nil];
 }
 
@@ -109,22 +113,40 @@
 // lesen (GROUP BY + Entschlüsseln je Chat) vor jeder Zurück-Animation ließ den Wechsel ruckeln.
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
-    if (!_loaded || _stale) { _loaded = YES; _stale = NO; [self reload]; }
+    if (!_loaded || _stale) { _loaded = YES; _stale = NO; _prepared = NO; [self reload]; }
+    else if (_prepared) { _prepared = NO; [self applyFilter]; }   // Daten liegen bereit: nur die Tabelle
 }
 
+// Verdeckt: gebündelt nach einer Sekunde Ruhe im Standard-Modus (nicht während gescrollt wird) die
+// Daten schon lesen, damit die Zurück-Animation nur noch die Tabelle füllt.
 - (void)messagesChanged {
-    if (self.isViewLoaded && self.view.window) [self reload];
-    else _stale = YES;
+    if (self.isViewLoaded && self.view.window) { [self reload]; return; }
+    _stale = YES;
+    if (!_loaded || _prepareQueued) return;
+    _prepareQueued = YES;
+    [self performSelector:@selector(prepareHidden) withObject:nil afterDelay:1 inModes:@[NSDefaultRunLoopMode]];
+}
+
+- (void)prepareHidden {
+    _prepareQueued = NO;
+    if (!_stale || (self.isViewLoaded && self.view.window) || ![MeshSession shared].unlocked) return;
+    [self loadData];
+    _stale = NO;
+    _prepared = YES;
 }
 
 - (void)reload {
+    [self loadData];
+    [self applyFilter];
+}
+
+- (void)loadData {
     MeshSession *s = [MeshSession shared];
     _allChats = [s chatList];
     // Profilbilder der eigenen Identitäten für die Plaketten im gemeinsamen Posteingang
     NSMutableDictionary *pictures = [NSMutableDictionary dictionary];
     if (s.unifiedInbox) for (MeshIdentityInfo *i in [s identities]) if (i.picture.length) pictures[@(i.slot)] = i.picture;
     _identityPictures = pictures;
-    [self applyFilter];
 }
 
 - (int)activeSlot { return [[MeshSession shared] activeIdentitySlot]; }

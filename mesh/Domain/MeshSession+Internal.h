@@ -16,6 +16,7 @@
 - (NSArray *)unlockedIdentities;   // MeshIdentity
 - (void)messagesChanged;           // Uhren neu stellen, UI benachrichtigen
 - (void)notify:(NSString *)name;
+- (void)notifyProfileOf:(NSString *)pubkey;   // MeshProfilesChangedNotification nur für diesen Pubkey
 - (void)requestProfileOf:(NSString *)hex;
 @end
 

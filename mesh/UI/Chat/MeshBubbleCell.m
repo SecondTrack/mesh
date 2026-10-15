@@ -5,6 +5,7 @@
 #import "MeshFormat.h"
 #import "MeshAvatarView.h"
 #import "MeshEmoji.h"
+#import "MeshNotifications.h"
 
 static const CGFloat kBubbleMaxFrac = 0.74f;   // max Bubble-Breite (Text)
 static const CGFloat kBubblePadX = 12, kBubblePadY = 8, kRowVPad = 3;
@@ -42,7 +43,17 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
 @end
 @implementation MeshWaveView
 - (void)setSeed:(NSString *)seed { _seed = [seed copy]; [self setNeedsDisplay]; }
-- (void)setProgress:(CGFloat)p { _progress = p; [self setNeedsDisplay]; }
+// Neu zeichnen nur, wenn sich die Zahl der abgespielten Balken ändert (gleiche Bedingung wie drawRect).
+static int playedBars(CGFloat progress) {
+    int k = 0;
+    for (int i = 0; i < 26; i++) if (progress > 0 && ((CGFloat)i / 26) <= progress) k++;
+    return k;
+}
+- (void)setProgress:(CGFloat)p {
+    BOOL same = playedBars(p) == playedBars(_progress);
+    _progress = p;
+    if (!same) [self setNeedsDisplay];
+}
 - (void)drawRect:(CGRect)r {
     const int n = 26;
     uint32_t h = 0;   // vorzeichenlos: Überlauf ist hier gewollt und definiert
@@ -96,36 +107,69 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
         // Offscreen-Durchgang pro Blase und Frame – der Hauptgrund für Ruckeln beim Wechseln.
         _bubble.layer.cornerRadius = [MeshTheme bubbleRadius];
         [self.contentView addSubview:_bubble];
+        // Bilder und Video-Vorschauen kommen schon gerundet auf der Blasenfarbe (photoForBubble:, videoThumbForBubble:):
+        // ohne clipsToBounds. Der Radius rundet nur die Hintergrundfarbe (Platzhalter, solange das Bild lädt).
         _photo = [[UIImageView alloc] init];
         _photo.contentMode = UIViewContentModeScaleAspectFill;
-        _photo.clipsToBounds = YES;
         _photo.layer.cornerRadius = [MeshTheme bubbleRadius] - 3;   // 3 pt Rand in der Blase
         [_bubble addSubview:_photo];
         _tick = [[UIImageView alloc] init];
         [self.contentView addSubview:_tick];
-        // Sprach-Elemente (anfangs versteckt): runder Play/Pause-Kreis + Wellenform + Dauer.
-        _vIcon = [[UIImageView alloc] init]; _vIcon.contentMode = UIViewContentModeCenter;
-        _vIcon.layer.cornerRadius = kVoiceIcon / 2; _vIcon.hidden = YES;
-        [_bubble addSubview:_vIcon];
-        _vBar = [[MeshWaveView alloc] init]; _vBar.backgroundColor = [UIColor clearColor]; _vBar.opaque = NO; _vBar.hidden = YES;
-        [_bubble addSubview:_vBar];
-        _vDur = [[UILabel alloc] init]; _vDur.font = [MeshTheme timeFont]; _vDur.backgroundColor = [UIColor clearColor];
-        _vDur.textAlignment = NSTextAlignmentRight; _vDur.hidden = YES; [_bubble addSubview:_vDur];
-        [self addFileViews];
-        _play = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, kVideoPlay, kVideoPlay)];
-        _play.contentMode = UIViewContentModeCenter;
-        _play.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6f];
-        _play.layer.cornerRadius = kVideoPlay / 2;
-        _play.image = [MeshGlyphs playPauseIcon:NO size:26 color:[UIColor whiteColor]];
-        _play.hidden = YES;
-        [_bubble addSubview:_play];
-        [self addCardViews];
-        [self addQuoteAndReaction];
+        // Sprache, Datei, Video-Knopf, Kontaktkarte, Zitat und Reaktion erst, wenn eine Zeile sie braucht
     }
     return self;
 }
 
+- (void)addVoiceViews {
+    if (_vIcon) return;
+    // Sprach-Elemente: runder Play/Pause-Kreis + Wellenform + Dauer.
+    _vIcon = [[UIImageView alloc] init]; _vIcon.contentMode = UIViewContentModeCenter;
+    _vIcon.layer.cornerRadius = kVoiceIcon / 2; _vIcon.hidden = YES;
+    [_bubble addSubview:_vIcon];
+    _vBar = [[MeshWaveView alloc] init]; _vBar.backgroundColor = [UIColor clearColor]; _vBar.opaque = NO; _vBar.hidden = YES;
+    [_bubble addSubview:_vBar];
+    _vDur = [[UILabel alloc] init]; _vDur.font = [MeshTheme timeFont]; _vDur.backgroundColor = [UIColor clearColor];
+    _vDur.textAlignment = NSTextAlignmentRight; _vDur.hidden = YES; [_bubble addSubview:_vDur];
+}
+
+- (void)addPlayView {
+    if (_play) return;
+    _play = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, kVideoPlay, kVideoPlay)];
+    _play.contentMode = UIViewContentModeCenter;
+    _play.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6f];
+    _play.layer.cornerRadius = kVideoPlay / 2;
+    _play.image = [MeshGlyphs playPauseIcon:NO size:26 color:[UIColor whiteColor]];
+    _play.hidden = YES;
+    [_bubble addSubview:_play];
+}
+
+// Ecken des Bildes auf die Blasenfarbe malen statt auszuschneiden: sieht gleich aus, kostet am A4
+// aber keinen Offscreen-Durchgang je Zeile und Frame. Aspect-fill wie die UIImageView.
+static UIImage *roundedOnBubble(UIImage *img, CGSize box, BOOL fromMe, CGFloat scale) {
+    CGRect r = CGRectMake(0, 0, box.width, box.height);
+    UIGraphicsBeginImageContextWithOptions(box, YES, scale);
+    [(fromMe ? [MeshTheme accentDeep] : [MeshTheme surfaceHi]) setFill];
+    UIRectFill(r);
+    [[UIBezierPath bezierPathWithRoundedRect:r cornerRadius:[MeshTheme bubbleRadius] - 3] addClip];
+    CGSize s = img.size;
+    CGFloat f = MAX(box.width / MAX(1, s.width), box.height / MAX(1, s.height));
+    CGSize d = CGSizeMake(s.width * f, s.height * f);
+    [img drawInRect:CGRectMake((box.width - d.width) / 2, (box.height - d.height) / 2, d.width, d.height)];
+    UIImage *out = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return out;
+}
+
++ (UIImage *)photoForBubble:(UIImage *)image tableWidth:(CGFloat)width fromMe:(BOOL)fromMe scale:(CGFloat)scale {
+    return roundedOnBubble(image, MeshImgDisplaySize(image.size, width * 0.62f, 260), fromMe, scale);
+}
+
++ (UIImage *)videoThumbForBubble:(UIImage *)thumb fromMe:(BOOL)fromMe scale:(CGFloat)scale {
+    return roundedOnBubble(thumb, CGSizeMake(kVideoWidth, kVideoHeight), fromMe, scale);
+}
+
 - (void)addFileViews {
+    if (_fIcon) return;
     _fIcon = [[UIImageView alloc] initWithFrame:CGRectMake(8, (kFileHeight - kFileIcon) / 2, kFileIcon, kFileIcon)];
     _fIcon.contentMode = UIViewContentModeCenter;
     _fIcon.layer.cornerRadius = 9;
@@ -137,9 +181,10 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     for (UIView *v in @[_fIcon, _fName, _fDetail]) { v.hidden = YES; v.backgroundColor = [UIColor clearColor]; [_bubble addSubview:v]; }
 }
 
-- (void)hideFile { _fIcon.hidden = YES; _fName.hidden = YES; _fDetail.hidden = YES; _play.hidden = YES; [self hideCard]; }
+- (void)hideFile { _fIcon.hidden = YES; _fName.hidden = YES; _fDetail.hidden = YES; _play.hidden = YES; [self hideCard]; }   // nil: nichts zu tun
 
 - (void)addCardViews {
+    if (_cRing) return;
     _cRing = [[UIView alloc] init];
     _cRing.layer.borderWidth = 2;
     _cRing.layer.borderColor = [[MeshTheme accent] colorWithAlphaComponent:0.55f].CGColor;
@@ -169,7 +214,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
 }
 
 - (void)hideCard {
-    for (UIView *v in @[_cRing, _cName, _cSubIcon, _cSub, _cLine, _cActionIcon, _cAction]) v.hidden = YES;
+    if (_cRing) for (UIView *v in @[_cRing, _cName, _cSubIcon, _cSub, _cLine, _cActionIcon, _cAction]) v.hidden = YES;
     _bubble.layer.borderWidth = 0;
 }
 
@@ -182,6 +227,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
 - (void)setContactCard:(NSString *)name pubkey:(NSString *)pubkey action:(NSString *)action glyph:(NSString *)glyph
                 fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width {
     _photo.hidden = YES; _photo.image = nil; _bubble.text = nil; [self hideVoice]; [self hideFile];
+    [self addCardViews];
     CGFloat h = kCardHead + (action ? kCardAction + 1 : 0);
     CGFloat x = fromMe ? (width - kCardWidth - 12) : 12;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, kCardWidth, h);
@@ -225,6 +271,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     _photo.image = thumb;
     _photo.backgroundColor = [MeshTheme field];
     _photo.frame = CGRectMake(3, 3, kVideoWidth, vh);
+    [self addPlayView];
     _play.hidden = NO;
     _play.center = CGPointMake(bw / 2, bh / 2);
     [_bubble bringSubviewToFront:_play];
@@ -237,6 +284,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     _bubble.backgroundColor = fromMe ? [MeshTheme accentDeep] : [MeshTheme surfaceHi];
     CGFloat x = fromMe ? (width - kFileWidth - 12) : 12;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, kFileWidth, kFileHeight);
+    [self addFileViews];
     _fIcon.hidden = NO; _fName.hidden = NO; _fDetail.hidden = NO;
     _fIcon.backgroundColor = fromMe ? [MeshTheme accent] : [MeshTheme accentDim];
     _fIcon.image = [MeshGlyphs icon:@"file" color:(fromMe ? [MeshTheme bg] : [MeshTheme ink]) size:20];
@@ -250,14 +298,29 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
 
 + (CGFloat)heightForFile { return kFileHeight + 2 * kRowVPad + 4; }
 
-- (void)addQuoteAndReaction {
+// Linker Balken des Zitats, schon auf die runden Ecken (Radius 8) zugeschnitten: das Zitat braucht
+// dann kein clipsToBounds (Offscreen-Durchgang); der Radius rundet nur die Hintergrundfarbe.
+static UIImage *quoteBarImage(void) {
+    static UIImage *img; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(kQuoteBar, kQuoteHeight), NO, 0);
+        [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, 32, kQuoteHeight) cornerRadius:8] addClip];
+        [[MeshTheme accent] setFill];
+        UIRectFill(CGRectMake(0, 0, kQuoteBar, kQuoteHeight));
+        img = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+    });
+    return img;
+}
+
+- (void)addQuote {
+    if (_quote) return;
     _quote = [[UIView alloc] init];
     _quote.backgroundColor = [MeshTheme surface];
     _quote.layer.cornerRadius = 8;
-    _quote.clipsToBounds = YES;
     _quote.hidden = YES;
-    UIView *bar = [[UIView alloc] initWithFrame:CGRectMake(0, 0, kQuoteBar, kQuoteHeight)];
-    bar.backgroundColor = [MeshTheme accent];
+    UIImageView *bar = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, kQuoteBar, kQuoteHeight)];
+    bar.image = quoteBarImage();
     [_quote addSubview:bar];
     _quoteAuthor = [[UILabel alloc] init];
     _quoteAuthor.font = [MeshTheme timeFont];
@@ -271,7 +334,10 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     [_quote addSubview:_quoteText];
     [_quote addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(quoteTap)]];
     [self.contentView addSubview:_quote];
+}
 
+- (void)addReaction {
+    if (_reaction) return;
     _reaction = [[UILabel alloc] init];
     _reaction.font = [UIFont systemFontOfSize:14];
     _reaction.textAlignment = NSTextAlignmentCenter;
@@ -286,6 +352,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
 - (void)quoteTap { if (self.quoteTapped) self.quoteTapped(); }
 
 - (void)setQuoteAuthor:(NSString *)author text:(NSString *)text {
+    if (author) [self addQuote];
     _quote.hidden = author == nil;
     _quoteAuthor.text = author;
     _quoteText.text = text;
@@ -293,6 +360,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
 }
 
 - (void)setReactions:(NSString *)reactions {
+    if (reactions.length) [self addReaction];
     _reaction.text = reactions;
     _reaction.hidden = reactions.length == 0;
 }
@@ -305,14 +373,14 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
 // halb unter der Blase auf der Seite gegenüber dem Haken.
 - (void)layoutDecorationsFromMe:(BOOL)fromMe width:(CGFloat)width {
     CGRect b = _bubble.frame;
-    if (!_quote.hidden) {
+    if (_quote && !_quote.hidden) {
         CGFloat qw = MIN(width * kBubbleMaxFrac, MAX(b.size.width, 140));
         CGFloat qx = fromMe ? CGRectGetMaxX(b) - qw : b.origin.x;
         _quote.frame = CGRectMake(qx, kRowVPad, qw, kQuoteHeight);
         _quoteAuthor.frame = CGRectMake(kQuoteBar + 8, 3, qw - kQuoteBar - 14, 16);
         _quoteText.frame = CGRectMake(kQuoteBar + 8, 19, qw - kQuoteBar - 14, 16);
     }
-    if (!_reaction.hidden) {
+    if (_reaction && !_reaction.hidden) {
         CGFloat rw = MAX(kReactionHeight + 6, [MeshEmoji textSize:_reaction.text font:_reaction.font constrainedTo:CGSizeMake(200, 30)].width + 14);
         CGFloat rx = fromMe ? b.origin.x + 6 : CGRectGetMaxX(b) - rw - 6;
         _reaction.frame = CGRectMake(rx, CGRectGetMaxY(b) - kReactionOverlap, rw, kReactionHeight);
@@ -326,6 +394,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     CGFloat bw = kVoiceWidth, bh = kVoiceHeight;
     CGFloat x = fromMe ? (width - bw - 12) : 12;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, bw, bh);
+    [self addVoiceViews];
     _vIcon.hidden = NO; _vBar.hidden = NO; _vDur.hidden = NO;
     // runder Play/Pause-Knopf (accent bei mir, accentDim beim Gegenüber)
     _vIcon.backgroundColor = fromMe ? [MeshTheme accent] : [MeshTheme accentDim];
@@ -343,9 +412,28 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     [self layoutTickFor:fromMe status:status];
     [self layoutDecorationsFromMe:fromMe width:width];
 }
+// Gemessene Textgrößen (Zeilenhöhe und Zelle messen denselben Text): einmal messen. Enthält Klartext,
+// darum beim Sperren geleert.
+static NSCache *TextSizes(void) {
+    static NSCache *cache; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        cache = [[NSCache alloc] init];
+        cache.countLimit = 400;
+        for (NSString *name in @[MeshWillLockNotification, MeshIdentityChangedNotification, MeshWipedNotification])
+            [[NSNotificationCenter defaultCenter] addObserverForName:name object:nil queue:nil
+                                                          usingBlock:^(NSNotification *n) { [cache removeAllObjects]; }];
+    });
+    return cache;
+}
+
 + (CGSize)textSize:(NSString *)text width:(CGFloat)width {
     CGFloat maxW = width * kBubbleMaxFrac - 2 * kBubblePadX;
-    return [MeshEmoji textSize:text font:[MeshTheme bodyFont] constrainedTo:CGSizeMake(maxW, 10000)];
+    NSString *key = [NSString stringWithFormat:@"%.0f|%@", maxW, text ?: @""];
+    NSValue *known = [TextSizes() objectForKey:key];
+    if (known) return [known CGSizeValue];
+    CGSize size = [MeshEmoji textSize:text font:[MeshTheme bodyFont] constrainedTo:CGSizeMake(maxW, 10000)];
+    [TextSizes() setObject:[NSValue valueWithCGSize:size] forKey:key];
+    return size;
 }
 - (void)layoutTickFor:(BOOL)fromMe status:(MeshMessageStatus)status {
     if (fromMe) {

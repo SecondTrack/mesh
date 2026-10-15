@@ -14,7 +14,7 @@
 #import "MeshL10n.h"
 
 static const NSUInteger kPerRow = 4;
-static const CGFloat kGap = 3, kSide = 8, kThumbPixels = 160;
+static const CGFloat kGap = 3, kSide = 8, kThumbPixels = 160, kTileRadius = 6;
 
 @interface MeshGalleryViewController () <UITableViewDataSource, UITableViewDelegate>
 @end
@@ -171,10 +171,12 @@ static const CGFloat kGap = 3, kSide = 8, kThumbPixels = 160;
         dispatch_set_target_queue(q, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0));
     });
     MESH_WEAK MeshGalleryViewController *weakSelf = self;
+    CGFloat radius = kTileRadius * kThumbPixels / [self tileSide];   // in Pixeln des Vorschaubilds
+    UIColor *corner = [MeshTheme bg];                                // Zellen-Hintergrund hinter den Ecken
     dispatch_async(q, ^{
         UIImage *big = video ? [MeshVideoCodec thumbnailOfMP4:data maxSide:kThumbPixels * 2]
                              : [MeshImageCodec imageFromData:data formats:MeshImageJPEG];
-        UIImage *small = big ? squareThumb(big, kThumbPixels) : nil;
+        UIImage *small = big ? squareThumb(big, kThumbPixels, radius, corner) : nil;
         dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf thumb:small readyFor:k]; });
     });
 }
@@ -188,12 +190,16 @@ static const CGFloat kGap = 3, kSide = 8, kThumbPixels = 160;
     return NO;
 }
 
-// Mittiges Quadrat, auf side Pixel verkleinert
-static UIImage *squareThumb(UIImage *img, CGFloat side) {
+// Mittiges Quadrat, auf side Pixel verkleinert. Die Ecken (Radius der Kachel, umgerechnet auf side)
+// sind schon rund auf die Hintergrundfarbe gemalt: die Kachel braucht kein clipsToBounds.
+static UIImage *squareThumb(UIImage *img, CGFloat side, CGFloat radius, UIColor *corner) {
     CGSize s = img.size;
     CGFloat scale = side / MAX(1, MIN(s.width, s.height));
     CGSize d = CGSizeMake(s.width * scale, s.height * scale);
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(side, side), YES, 1);
+    [corner setFill];
+    UIRectFill(CGRectMake(0, 0, side, side));
+    [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, side, side) cornerRadius:radius] addClip];
     [img drawInRect:CGRectMake((side - d.width) / 2, (side - d.height) / 2, d.width, d.height)];
     UIImage *out = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
@@ -232,8 +238,7 @@ static UIImage *squareThumb(UIImage *img, CGFloat side) {
             UIButton *tile = [UIButton buttonWithType:UIButtonTypeCustom];
             tile.frame = CGRectMake(kSide + c * (side + kGap), 0, side, side);
             tile.backgroundColor = [MeshTheme surfaceHi];
-            tile.layer.cornerRadius = 6;
-            tile.clipsToBounds = YES;
+            tile.layer.cornerRadius = kTileRadius;   // rundet nur die Fläche; Vorschaubilder kommen schon rund
             tile.imageView.contentMode = UIViewContentModeScaleAspectFill;
             [tile addTarget:self action:@selector(openTile:) forControlEvents:UIControlEventTouchUpInside];
             tile.tag = 100 + c;
@@ -255,8 +260,9 @@ static UIImage *squareThumb(UIImage *img, CGFloat side) {
         MeshMessage *m = _items[i];
         BOOL video = m.kind == MeshPayloadFile;
         UIImage *thumb = [self thumbFor:m];
-        [tile setImage:thumb forState:UIControlStateNormal];
-        if (!thumb && video) [tile setImage:[MeshGlyphs icon:@"play" color:[MeshTheme accent] size:26] forState:UIControlStateNormal];
+        // Vorschau als Hintergrundbild: füllt die Kachel genau (quadratisch, Ecken schon rund), ohne Ausschneiden
+        [tile setBackgroundImage:thumb forState:UIControlStateNormal];
+        [tile setImage:(!thumb && video) ? [MeshGlyphs icon:@"play" color:[MeshTheme accent] size:26] : nil forState:UIControlStateNormal];
         [tile viewWithTag:200].hidden = !video || !thumb;
     }
     return cell;

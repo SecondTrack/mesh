@@ -460,29 +460,27 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
     return NSMakeRange((NSUInteger)a, (NSUInteger)(b - a));
 }
 
-- (void)replaceRange:(NSRange)range with:(NSString *)s {
+// Wie UIKit beim Tippen: erst den Delegate fragen. NO = abgelehnt (oder Feld gewechselt).
+- (BOOL)mayReplace:(NSRange)range with:(NSString *)s {
     UIResponder<UITextInput> *t = _target;
-    if (!t) return;
+    if (!t) return NO;
     if ([t isKindOfClass:[UITextField class]]) {
         UITextField *tf = (UITextField *)t;
         id<UITextFieldDelegate> d = tf.delegate;
         if ([d respondsToSelector:@selector(textField:shouldChangeCharactersInRange:replacementString:)]
-            && ![d textField:tf shouldChangeCharactersInRange:range replacementString:s]) { [self updateAutoShift]; return; }
+            && ![d textField:tf shouldChangeCharactersInRange:range replacementString:s]) { [self updateAutoShift]; return NO; }
     } else if ([t isKindOfClass:[UITextView class]]) {
         UITextView *tv = (UITextView *)t;
         id<UITextViewDelegate> d = tv.delegate;
         if ([d respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementText:)]
-            && ![d textView:tv shouldChangeTextInRange:range replacementText:s]) { [self updateAutoShift]; return; }
+            && ![d textView:tv shouldChangeTextInRange:range replacementText:s]) { [self updateAutoShift]; return NO; }
     }
-    if (_target != t) return;   // der Delegate hat das Feld gewechselt
-    UITextPosition *a = [t positionFromPosition:t.beginningOfDocument offset:(NSInteger)range.location];
-    UITextPosition *b = a ? [t positionFromPosition:a offset:(NSInteger)range.length] : nil;
-    if (!a || !b) return;
-    _sawChange = NO;
-    [t replaceRange:[t textRangeFromPosition:a toPosition:b] withText:s];
-    UITextPosition *caret = [t positionFromPosition:t.beginningOfDocument offset:(NSInteger)(range.location + s.length)];
-    if (caret) t.selectedTextRange = [t textRangeFromPosition:caret toPosition:caret];
-    // Meldungen wie beim Tippen, falls UIKit sie bei replaceRange nicht selbst schickt
+    return _target == t;   // der Delegate kann das Feld gewechselt haben
+}
+
+// Meldungen wie beim Tippen, falls UIKit sie nicht selbst schickt
+- (void)didChange {
+    UIResponder<UITextInput> *t = _target;
     if (!_sawChange) {
         if ([t isKindOfClass:[UITextField class]]) {
             [(UITextField *)t sendActionsForControlEvents:UIControlEventEditingChanged];
@@ -496,20 +494,49 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
     [self updateAutoShift];
 }
 
+// Einfügen und Löschen an der Auswahl laufen über UIKeyInput wie echtes Tippen: der Feld-Editor von
+// iOS 6 zählt Positionen nicht in UTF-16, nach einem Emoji (2 Einheiten) liefen Offsets ins Leere
+// und weder Text noch ein weiteres Emoji kam an.
 - (void)insert:(NSString *)s {
-    if (!_target || !s.length) return;
-    [self replaceRange:[self selection] with:s];
+    UIResponder<UITextInput> *t = _target;
+    if (!t || !s.length || ![self mayReplace:[self selection] with:s]) return;
+    _sawChange = NO;
+    [t insertText:s];
+    [self didChange];
 }
 
 - (void)deleteBackward {
-    if (!_target) return;
+    UIResponder<UITextInput> *t = _target;
+    if (!t) return;
     NSRange sel = [self selection];
     if (!sel.length) {
         if (!sel.location) return;
-        sel = [MeshKeyboardLayout deleteRangeIn:[self fieldText] cursor:sel.location];
-        if (!sel.length) return;
+        NSRange r = [MeshKeyboardLayout deleteRangeIn:[self fieldText] cursor:sel.location];
+        if (!r.length) return;
+        if (r.length > 2) {   // Emoji-Folge (ZWJ, Hautfarbe): als Ganzes, über Offsets
+            [self replaceRange:r with:@""];
+            return;
+        }
+        sel = r;
     }
-    [self replaceRange:sel with:@""];
+    if (![self mayReplace:sel with:@""]) return;
+    _sawChange = NO;
+    [t deleteBackward];
+    [self didChange];
+}
+
+// Beliebigen Bereich ersetzen (über UITextInput-Offsets)
+- (void)replaceRange:(NSRange)range with:(NSString *)s {
+    UIResponder<UITextInput> *t = _target;
+    if (![self mayReplace:range with:s]) return;
+    UITextPosition *a = [t positionFromPosition:t.beginningOfDocument offset:(NSInteger)range.location];
+    UITextPosition *b = a ? [t positionFromPosition:a offset:(NSInteger)range.length] : nil;
+    if (!a || !b) return;
+    _sawChange = NO;
+    [t replaceRange:[t textRangeFromPosition:a toPosition:b] withText:s];
+    UITextPosition *caret = [t positionFromPosition:t.beginningOfDocument offset:(NSInteger)(range.location + s.length)];
+    if (caret) t.selectedTextRange = [t textRangeFromPosition:caret toPosition:caret];
+    [self didChange];
 }
 
 - (void)pressReturn {

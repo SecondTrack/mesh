@@ -136,6 +136,8 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 - (NSArray *)messagesWith:(NSString *)peerHex limit:(NSUInteger)limit;   // nur die neuesten, älteste zuerst
 - (NSArray *)messagesWith:(NSString *)peerHex before:(MeshMessage *)oldest limit:(NSUInteger)limit;   // die älteren davor, älteste zuerst
 - (NSUInteger)messageCountFrom:(NSString *)key in:(NSString *)peerHex;   // so viele neueste laden, damit key dabei ist; 0 = weg
+- (NSUInteger)messageCountAfter:(long long)ts in:(NSString *)peerHex;    // Nachrichten jünger als ts (ohne zu entschlüsseln)
+- (BOOL)hasMessage:(NSString *)key in:(NSString *)peerHex;                // per cmid/Event-ID, ohne zu entschlüsseln
 - (NSData *)mediaOf:(MeshMessage *)message;                // JPEG, AAC bzw. Datei, nil bei Text
 - (MeshPayload *)payloadOf:(MeshMessage *)message;
 - (NSArray *)mediaWith:(NSString *)peerHex;                // Bilder und Videos für die Galerie, neueste zuerst

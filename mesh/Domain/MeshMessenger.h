@@ -43,4 +43,6 @@
 
 // Empfangen: ein kind-4-Event. YES, wenn sich etwas Sichtbares geändert hat.
 - (BOOL)receive:(MeshEvent *)event;
+
+- (void)wipeKeys;   // zwischengespeicherte Schlüssel je Kontakt überschreiben (beim Sperren)
 @end
