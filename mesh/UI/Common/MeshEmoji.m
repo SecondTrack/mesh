@@ -1,6 +1,7 @@
 #import "MeshEmoji.h"
 #import <CoreText/CoreText.h>
 #import "MeshEmojiText.h"
+#import "MeshCustomEmoji.h"
 #import <objc/runtime.h>
 
 @implementation MeshEmoji
@@ -14,12 +15,33 @@ static NSData *packData(void) {
     return data;
 }
 
+// Eigenes Emoji aus Resources/frosch/<name>.png: die Bilder sind nicht ganz quadratisch (61–66 px),
+// darum mittig auf ein Quadrat gesetzt, damit jeder Zeichenweg (Satz, Tastatur, Knöpfe) unverzerrt skaliert.
+static UIImage *customImage(NSString *name) {
+    NSString *path = [[NSBundle mainBundle] pathForResource:name ofType:@"png" inDirectory:@"frosch"];
+    UIImage *raw = path ? [UIImage imageWithData:[NSData dataWithContentsOfFile:path]] : nil;
+    CGImageRef cg = raw.CGImage;
+    if (!cg) return nil;
+    size_t w = CGImageGetWidth(cg), h = CGImageGetHeight(cg), side = MAX(w, h);
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(side / 2.0f, side / 2.0f), NO, 2);
+    [[UIImage imageWithCGImage:cg scale:2 orientation:UIImageOrientationUp]
+        drawInRect:CGRectMake((side - w) / 4.0f, (side - h) / 4.0f, w / 2.0f, h / 2.0f)];
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
+
 + (UIImage *)imageForKey:(NSString *)key {
     static NSCache *cache;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ cache = [[NSCache alloc] init]; cache.countLimit = 200; });
     UIImage *img = [cache objectForKey:key];
     if (img) return img;
+    if ([MeshCustomEmoji isName:key]) {
+        img = customImage(key);
+        if (img) [cache setObject:img forKey:key];
+        return img;
+    }
     NSValue *v = [MeshEmojiText packIndex][key];
     NSData *pack = packData();
     if (!v || NSMaxRange(v.rangeValue) > pack.length) return nil;
@@ -73,6 +95,7 @@ static CTFontRef ctFont(UIFont *font) {
     if (!ctx || !layout) return;
     CGContextSaveGState(ctx);
     [(color ?: [UIColor blackColor]) setFill];
+    CGContextSetInterpolationQuality(ctx, kCGInterpolationHigh);   // Bilder werden verkleinert (Frösche 63 px)
     CTTextAlignment align = alignment == NSTextAlignmentCenter ? kCTCenterTextAlignment
                           : alignment == NSTextAlignmentRight ? kCTRightTextAlignment : kCTLeftTextAlignment;
     [layout drawInContext:ctx rect:rect alignment:align emoji:^(NSString *key, CGRect frame) {

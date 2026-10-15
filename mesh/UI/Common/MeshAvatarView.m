@@ -124,7 +124,8 @@ static NSUInteger PixelCost(UIImage *img) {
 // Gespeicherte Form (Base64/data:) des Profilbilds, nil = keins oder (noch) nicht zu zeigen.
 + (NSString *)storedPictureForSource:(MeshAvatarSource)source pubkey:(NSString *)pubkey {
     switch (source) {
-        case MeshAvatarContact:   return [[MeshSession shared] pictureFor:pubkey];   // auch Gruppen ("g:<gid>")
+        case MeshAvatarContact:
+        case MeshAvatarMember:    return [[MeshSession shared] pictureFor:pubkey];   // auch Gruppen ("g:<gid>"); nur angenommene
         case MeshAvatarSelf:      return [[MeshSession shared] profile].picture;
         case MeshAvatarIdenticon:
         case MeshAvatarPreview:   return nil;
@@ -142,7 +143,7 @@ static NSUInteger PixelCost(UIImage *img) {
     [[MeshTheme surfaceHi] setFill];
     UIRectFill(r);
     if ([self drawChatKey:pubkey inRect:r context:UIGraphicsGetCurrentContext()]) {}
-    else if (source == MeshAvatarIdenticon) [MeshIdenticon drawSeed:pubkey inRect:r context:UIGraphicsGetCurrentContext()];
+    else if (source == MeshAvatarIdenticon || source == MeshAvatarMember) [MeshIdenticon drawSeed:pubkey inRect:r context:UIGraphicsGetCurrentContext()];
     else [self drawPlaceholderInRect:r context:UIGraphicsGetCurrentContext()];
     img = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
@@ -163,14 +164,18 @@ static NSUInteger PixelCost(UIImage *img) {
     UIImage *img = _image;
     if (!img && group) { [MeshAvatarView drawChatKey:_pubkey inRect:b context:ctx]; return; }
     if (!img && _source == MeshAvatarIdenticon) { [MeshIdenticon drawSeed:_pubkey inRect:b context:ctx]; return; }
-    if (!img) { [MeshAvatarView drawPlaceholderInRect:b context:ctx]; return; }
+    if (!img && _source != MeshAvatarMember) { [MeshAvatarView drawPlaceholderInRect:b context:ctx]; return; }
 
-    // Fertiger Kreis aus dem Cache (nicht für eine Vorschau mit gesetztem picture)
-    NSString *key = _picture.length ? nil : [NSString stringWithFormat:@"%@|%.0f|%.0f", CacheKey(_source, _pubkey), b.size.width, b.size.height];
+    // Fertiger Kreis aus dem Cache (nicht für eine Vorschau mit gesetztem picture). Mitglied ohne Bild:
+    // das Identicon, ebenfalls fertig gecacht (Absenderbilder im Gruppenchat zeichnen sich beim Scrollen oft).
+    NSString *key = _picture.length ? nil : [NSString stringWithFormat:@"%@|%@|%.0f|%.0f", CacheKey(_source, _pubkey), img ? @"p" : @"i",
+                                             b.size.width, b.size.height];
     UIImage *circle = key ? [CircleCache objectForKey:key] : nil;
     if (!circle) {
         UIGraphicsBeginImageContextWithOptions(b.size, NO, 0);   // gleiche Auflösung wie die Ansicht
-        [MeshAvatarView drawCircle:img inRect:CGRectMake(0, 0, b.size.width, b.size.height) context:UIGraphicsGetCurrentContext()];
+        CGRect r = CGRectMake(0, 0, b.size.width, b.size.height);
+        if (img) [MeshAvatarView drawCircle:img inRect:r context:UIGraphicsGetCurrentContext()];
+        else [MeshIdenticon drawSeed:_pubkey inRect:r context:UIGraphicsGetCurrentContext()];
         circle = UIGraphicsGetImageFromCurrentImageContext();
         UIGraphicsEndImageContext();
         if (key && circle) [CircleCache setObject:circle forKey:key cost:PixelCost(circle)];

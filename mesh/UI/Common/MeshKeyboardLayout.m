@@ -1,4 +1,5 @@
 #import "MeshKeyboardLayout.h"
+#import "MeshCustomEmoji.h"
 
 @implementation MeshKeySpec
 @end
@@ -181,6 +182,8 @@ static BOOL isExtender(UTF32Char c) {
 + (NSRange)deleteRangeIn:(NSString *)text cursor:(NSUInteger)cursor {
     cursor = MIN(cursor, text.length);
     if (!cursor) return NSMakeRange(0, 0);
+    NSRange custom = [MeshCustomEmoji codeEndingIn:text at:cursor];   // eigenes Emoji: der ganze Code
+    if (custom.location != NSNotFound) return custom;
     // Von vorn in Zeichen zerlegen: nur so zählen Flaggen-Paare (Regionalbuchstaben) richtig.
     NSUInteger i = 0, last = 0, l, l2;
     while (i < cursor) {
@@ -207,6 +210,7 @@ static BOOL isExtender(UTF32Char c) {
 
 + (NSArray *)codepointsForEmojiKey:(NSString *)key {
     NSMutableArray *out = [NSMutableArray array];
+    if ([MeshCustomEmoji isName:key]) return out;   // kein Unicode
     for (NSString *part in [key componentsSeparatedByString:@"_"]) {
         if (!part.length) continue;
         unsigned long v = strtoul(part.UTF8String, NULL, 16);
@@ -258,6 +262,7 @@ static void appendCodepoint(NSMutableString *s, UTF32Char c) {
 }
 
 + (NSString *)stringForEmojiKey:(NSString *)key {
+    if ([MeshCustomEmoji isName:key]) return [MeshCustomEmoji codeForName:key];
     NSArray *cps = [self codepointsForEmojiKey:key];
     NSMutableString *s = [NSMutableString string];
     for (NSUInteger i = 0; i < cps.count; i++) {
@@ -271,6 +276,7 @@ static void appendCodepoint(NSMutableString *s, UTF32Char c) {
 }
 
 + (BOOL)isHiddenEmojiKey:(NSString *)key {
+    if ([MeshCustomEmoji isName:key]) return NO;
     NSArray *cps = [self codepointsForEmojiKey:key];
     if (!cps.count) return YES;
     for (NSNumber *n in cps) if (isSkinTone([n unsignedIntValue])) return YES;
@@ -323,6 +329,7 @@ static void appendCodepoint(NSMutableString *s, UTF32Char c) {
         {0x1FAB0, 0x1FABF, N}, {0x1FAC0, 0x1FAC5, S}, {0x1FAC6, 0x1FACF, N}, {0x1FAD0, 0x1FADF, F},
         {0x1FAE0, 0x1FAFF, S},
     };
+    if ([MeshCustomEmoji isName:key]) return MeshEmojiFrog;
     NSArray *cps = [self codepointsForEmojiKey:key];
     if (!cps.count) return MeshEmojiSymbols;
     UTF32Char c = [cps[0] unsignedIntValue];
@@ -336,7 +343,7 @@ static void appendCodepoint(NSMutableString *s, UTF32Char c) {
     NSMutableArray *groups = [NSMutableArray arrayWithCapacity:MeshEmojiGroupCount];
     for (int g = 0; g < MeshEmojiGroupCount; g++) [groups addObject:[NSMutableArray array]];
     for (NSString *k in keys) {
-        if ([self isHiddenEmojiKey:k]) continue;
+        if ([self isHiddenEmojiKey:k] || [MeshCustomEmoji isName:k]) continue;
         // Sortierschlüssel: Flaggen ohne Ländercode zuerst, dann die Codepunkte der Reihe nach
         NSArray *cps = [self codepointsForEmojiKey:k];
         [groups[[self groupForEmojiKey:k]] addObject:@[@(isRegional([cps[0] unsignedIntValue]) ? 1 : 0), cps, k]];
@@ -357,6 +364,7 @@ static void appendCodepoint(NSMutableString *s, UTF32Char c) {
         for (NSArray *e in g) [list addObject:e[2]];
         [out addObject:list];
     }
+    out[MeshEmojiFrog] = [MeshCustomEmoji names];
     return out;
 }
 

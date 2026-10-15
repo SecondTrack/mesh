@@ -25,6 +25,7 @@ grep -q ' 0 fehlgeschlagen' "$OUT/selftest.log" || FAILED="$FAILED\n  Krypto/Pro
 
 suite JSON              tests/json_test.m      -Imesh/Compat mesh/Compat/MeshJSONCodec.m
 suite PBKDF2            tests/crypto_test.m    -framework Security -Imesh/Crypto -Imesh/Support mesh/Crypto/MeshCrypto.m mesh/Support/MeshMemory.m mesh/Crypto/MeshHex.m
+suite Absender-Folgen   tests/runs_test.m      -Imesh/Model -Imesh/Support mesh/Model/MeshMessage.m mesh/Model/MeshPayload.m mesh/Support/MeshBase64.m
 suite Base64            tests/base64_test.m    -Imesh/Support mesh/Support/MeshBase64.m
 suite Nachrichtenformat tests/payload_test.m   -Imesh/Model -Imesh/Support mesh/Model/MeshPayload.m mesh/Support/MeshBase64.m
 suite scrypt            tests/scrypt_test.m    -O2 -Imesh/Crypto -Imesh/Support mesh/Crypto/MeshScrypt.m mesh/Crypto/MeshHex.m mesh/Support/MeshMemory.m
@@ -55,10 +56,12 @@ suite Kontakt-Code      tests/contactcode_test.m -Imesh/Protocol -Imesh/Crypto m
 suite Bech32            tests/bech32_test.m    -Imesh/Protocol -Imesh/Crypto mesh/Protocol/MeshBech32.m mesh/Crypto/MeshHex.m
 suite Text              tests/text_test.m      -Imesh/Support mesh/Support/MeshText.m
 suite Sicherheitscode    tests/safetycode_test.m -Imesh/Protocol mesh/Protocol/MeshSafetyCode.m
-suite Tastatur         tests/keyboard_test.m  -framework CoreGraphics -Imesh/UI/Common mesh/UI/Common/MeshKeyboardLayout.m
+suite Tastatur         tests/keyboard_test.m  -framework CoreGraphics -Imesh/UI/Common mesh/UI/Common/MeshKeyboardLayout.m mesh/UI/Common/MeshCustomEmoji.m
 suite Chat-Eingabe     tests/linetext_test.m  -framework CoreGraphics -Imesh/UI/Common -Imesh/Support mesh/UI/Common/MeshLineText.m \
-                        mesh/UI/Common/MeshKeyboardLayout.m mesh/Support/MeshText.m
-suite Emojis           tests/emoji_test.m     -framework CoreText -framework CoreGraphics -Imesh/UI/Common mesh/UI/Common/MeshEmojiText.m
+                        mesh/UI/Common/MeshKeyboardLayout.m mesh/UI/Common/MeshCustomEmoji.m mesh/Support/MeshText.m
+suite Emojis           tests/emoji_test.m     -framework CoreText -framework CoreGraphics -Imesh/UI/Common mesh/UI/Common/MeshEmojiText.m mesh/UI/Common/MeshCustomEmoji.m
+suite Netzstatus        tests/connect_test.m   -framework SystemConfiguration -Imesh/UI/Lock -Imesh/Transport -Imesh/Support \
+                        mesh/UI/Lock/MeshConnectPolicy.m mesh/Transport/MeshReachability.m mesh/Support/MeshNotifications.m
 suite PIN-Sperre        tests/pinguard_test.m  -Imesh/Domain mesh/Domain/MeshPinGuard.m
 suite Gruppen-Speicher  tests/groups_store_test.m -framework Security -Imesh/Storage -Imesh/Model -Imesh/Support -Imesh/Crypto -lsqlite3 \
                         mesh/Storage/MeshStore.m mesh/Support/MeshTime.m mesh/Storage/MeshStore+Migration.m mesh/Storage/MeshStore+Vault.m mesh/Storage/MeshStore+Outbox.m mesh/Storage/MeshStore+Chat.m mesh/Storage/MeshStore+Signal.m mesh/Storage/MeshStore+Group.m mesh/Storage/MeshVaultRecord.m mesh/Model/MeshChat.m mesh/Model/MeshMessage.m mesh/Model/MeshProfile.m mesh/Model/MeshPayload.m mesh/Support/MeshBase64.m \

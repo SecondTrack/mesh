@@ -318,6 +318,44 @@ int main(void) {
         check(sealedOk, "link key and records sealed");
         [s33 deleteGroup:@"0123456789abcdef"];
         check(![s33 groupRecords:MeshGroupRecordProposal gid:@"0123456789abcdef"].count, "deleting the group removes its records");
+
+        // 0.1.35: Einladungen in der Chatliste nach Eintreffen; erneute Einladung rückt nach oben
+        NSString *ga = @"aaaaaaaaaaaaaaaa";
+        check([s33 saveGroup:ga state:@"{}" status:MeshGroupInvited inviter:A64('c')] && [s33 groupCreated:ga] >= MeshNow() - 5, "invite: arrival time");
+        check([s33 setGroupArrived:500 gid:ga] && [s33 groupCreated:ga] == 500, "arrival time settable");
+        check([s33 saveGroup:ga state:@"{\"r\":2}" status:MeshGroupInvited inviter:A64('c')] && [s33 groupCreated:ga] == 500, "saving keeps arrival time");
+        check(![s33 setGroupArrived:1 gid:@"bbbbbbbbbbbbbbbb"], "unknown group: nothing set");
+        [s33 deleteGroup:ga];
+        check(MeshGroupRowTime(100, 900) == 900 && MeshGroupRowTime(1000, 900) == 1000, "group row: later of message and arrival");
+
+        NSMutableArray *list = [NSMutableArray array];
+        NSArray *spec = @[ @[@"alt", @100], @[@"team", @50], @[@"einladung", @900], @[@"chat", @500], @[@"beitritt", @700], @[@"gleich", @500] ];
+        for (NSArray *e in spec) {
+            MeshChat *c = [MeshChat new];
+            c.pubkey = e[0]; c.ts = [e[1] longLongValue];
+            c.isTeam = [e[0] isEqual:@"team"];
+            c.isGroup = [e[0] isEqual:@"einladung"] || [e[0] isEqual:@"beitritt"];
+            c.groupStatus = [e[0] isEqual:@"beitritt"] ? MeshGroupJoining : MeshGroupInvited;
+            [list addObject:c];
+        }
+        MeshSortChatList(list);
+        check([[list valueForKey:@"pubkey"] isEqualToArray:(@[@"team", @"einladung", @"beitritt", @"chat", @"gleich", @"alt"])],
+              "chat list: team pinned, then newest first (invitations like chats, stable ties)");
+        [list removeObjectAtIndex:0];
+        MeshSortChatList(list);
+        check([[list.firstObject pubkey] isEqualToString:@"einladung"], "without team: newest invitation on top");
+
+        // Beitritt: automatisch, nichts klingt nach Freigabe von Hand
+        NSString *joining = MeshGroupStatusNote(MeshGroupJoining);
+        check(joining && [joining isEqualToString:MeshGroupStatusNote(MeshGroupLinkJoining)]
+              && [joining rangeOfString:@"device is online"].location != NSNotFound
+              && [joining rangeOfString:@"Waiting for the admin"].location == NSNotFound, "joining note: automatic, admin's device");
+        check([MeshGroupStatusPreview(MeshGroupJoining) isEqualToString:@"Joining…"] && [MeshGroupStatusPreview(MeshGroupLinkJoining) isEqualToString:@"Joining…"],
+              "joining row in the list");
+        check(!MeshGroupStatusNote(MeshGroupMember) && !MeshGroupStatusPreview(MeshGroupMember) && !MeshGroupStatusPreview(MeshGroupInvited),
+              "member/invitation: no status text");
+        check(MeshGroupStatusNote(MeshGroupLeft) && MeshGroupStatusNote(MeshGroupRemoved) && MeshGroupStatusNote(MeshGroupDissolved)
+              && MeshGroupStatusPreview(MeshGroupJoinFailed) && MeshGroupStatusPreview(MeshGroupInviteExpired), "read-only states keep their texts");
         [[NSFileManager defaultManager] removeItemAtPath:p32 error:NULL];
     }
     return testsDone();

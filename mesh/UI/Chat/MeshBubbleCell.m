@@ -18,6 +18,7 @@ static const CGFloat kCardWidth = 252, kCardHead = 78, kCardAction = 46, kCardAv
 static const CGFloat kQuoteHeight = 38, kQuoteGap = 2, kQuoteBar = 3;   // Zitat über der Blase
 static const CGFloat kReactionHeight = 24, kReactionOverlap = 10;        // ragt so weit unter die Blase
 static const CGFloat kHeadHeight = 17;                                   // Absender / "an alle" über der Blase
+static const CGFloat kSenderAvatar = 28, kSenderGap = 6, kSenderLeft = 8;  // Absenderbild im Gruppenchat
 
 // Anzeigegröße eines Bildes, in eine max. Breite/Höhe eingepasst.
 static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
@@ -98,6 +99,8 @@ static int playedBars(CGFloat progress) {
     UILabel *_head;             // Absender bzw. "an alle", erst bei Bedarf angelegt
     CGFloat _headH, _quoteH;
     CGFloat _top;               // Platz über der Blase (Kopfzeile + Zitat)
+    MeshAvatarView *_sender;    // Absenderbild (Gruppe), erst bei Bedarf angelegt
+    CGFloat _inset;             // Einrückung eingehender Blasen (Bildspalte)
 }
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)rid {
     if ((self = [super initWithStyle:style reuseIdentifier:rid])) {
@@ -239,7 +242,7 @@ static UIImage *roundedOnBubble(UIImage *img, CGSize box, BOOL fromMe, CGFloat s
     [self addCardViews];
     _cSub.text = subtitle;
     CGFloat h = kCardHead + (action ? kCardAction + 1 : 0);
-    CGFloat x = fromMe ? (width - kCardWidth - 12) : 12;
+    CGFloat x = fromMe ? (width - kCardWidth - 12) : 12 + _inset;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, kCardWidth, h);
     _bubble.backgroundColor = [MeshTheme surface];
     _bubble.layer.borderWidth = 1;
@@ -275,7 +278,7 @@ static UIImage *roundedOnBubble(UIImage *img, CGSize box, BOOL fromMe, CGFloat s
     _bubble.text = nil; [self hideVoice]; [self hideFile];
     _bubble.backgroundColor = fromMe ? [MeshTheme accentDeep] : [MeshTheme surfaceHi];
     CGFloat vh = kVideoHeight, bw = kVideoWidth + 6, bh = vh + 6;
-    CGFloat x = fromMe ? (width - bw - 12) : 12;
+    CGFloat x = fromMe ? (width - bw - 12) : 12 + _inset;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, bw, bh);
     _photo.hidden = NO;
     _photo.image = thumb;
@@ -292,7 +295,7 @@ static UIImage *roundedOnBubble(UIImage *img, CGSize box, BOOL fromMe, CGFloat s
 - (void)setFile:(NSString *)name detail:(NSString *)detail fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width {
     _photo.hidden = YES; _photo.image = nil; _bubble.text = nil; [self hideVoice]; [self hideCard]; _play.hidden = YES;
     _bubble.backgroundColor = fromMe ? [MeshTheme accentDeep] : [MeshTheme surfaceHi];
-    CGFloat x = fromMe ? (width - kFileWidth - 12) : 12;
+    CGFloat x = fromMe ? (width - kFileWidth - 12) : 12 + _inset;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, kFileWidth, kFileHeight);
     [self addFileViews];
     _fIcon.hidden = NO; _fName.hidden = NO; _fDetail.hidden = NO;
@@ -384,6 +387,17 @@ static UIImage *quoteBarImage(void) {
     _top = _headH + _quoteH;
 }
 
+- (void)setSenderAvatar:(NSString *)pubkey indent:(BOOL)indent {
+    if (pubkey.length && !_sender) {
+        _sender = [[MeshAvatarView alloc] initWithFrame:CGRectMake(kSenderLeft, 0, kSenderAvatar, kSenderAvatar) source:MeshAvatarMember];
+        _sender.userInteractionEnabled = NO;
+        [self.contentView addSubview:_sender];
+    }
+    _sender.hidden = !pubkey.length;
+    if (pubkey.length) _sender.pubkey = pubkey;   // gleicher Pubkey: kein Neuzeichnen (Kreis kommt aus dem Cache)
+    _inset = indent ? kSenderLeft + kSenderAvatar + kSenderGap - 12 : 0;
+}
+
 - (void)setReactions:(NSString *)reactions {
     if (reactions.length) [self addReaction];
     _reaction.text = reactions;
@@ -402,6 +416,10 @@ static UIImage *quoteBarImage(void) {
 // halb unter der Blase auf der Seite gegenüber dem Haken.
 - (void)layoutDecorationsFromMe:(BOOL)fromMe width:(CGFloat)width {
     CGRect b = _bubble.frame;
+    if (_sender && !_sender.hidden) {   // unten bündig mit der Blase
+        _sender.hidden = fromMe;
+        _sender.frame = CGRectMake(kSenderLeft, CGRectGetMaxY(b) - kSenderAvatar, kSenderAvatar, kSenderAvatar);
+    }
     if (_head && !_head.hidden) {
         CGFloat hw = width * kBubbleMaxFrac;
         _head.textAlignment = fromMe ? NSTextAlignmentRight : NSTextAlignmentLeft;
@@ -426,7 +444,7 @@ static UIImage *quoteBarImage(void) {
     _photo.hidden = YES; _photo.image = nil; _bubble.text = nil; [self hideFile];
     _bubble.backgroundColor = fromMe ? [MeshTheme accentDeep] : [MeshTheme surfaceHi];
     CGFloat bw = kVoiceWidth, bh = kVoiceHeight;
-    CGFloat x = fromMe ? (width - bw - 12) : 12;
+    CGFloat x = fromMe ? (width - bw - 12) : 12 + _inset;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, bw, bh);
     [self addVoiceViews];
     _vIcon.hidden = NO; _vBar.hidden = NO; _vDur.hidden = NO;
@@ -494,7 +512,7 @@ static NSCache *TextSizes(void) {
     CGSize ts = [MeshBubbleCell textSize:text width:width];
     CGFloat bw = ts.width + 2 * kBubblePadX;
     CGFloat bh = ts.height + 2 * kBubblePadY;
-    CGFloat x = fromMe ? (width - bw - 12) : 12;
+    CGFloat x = fromMe ? (width - bw - 12) : 12 + _inset;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, bw, bh);
     [self layoutTickFor:fromMe status:status];
     [self layoutDecorationsFromMe:fromMe width:width];
@@ -508,7 +526,7 @@ static NSCache *TextSizes(void) {
     _bubble.backgroundColor = fromMe ? [MeshTheme accentDeep] : [MeshTheme surfaceHi];
     CGSize ds = MeshImgDisplaySize(size, width * 0.62f, 260);
     CGFloat bw = ds.width + 6, bh = ds.height + 6;
-    CGFloat x = fromMe ? (width - bw - 12) : 12;
+    CGFloat x = fromMe ? (width - bw - 12) : 12 + _inset;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, bw, bh);
     _photo.hidden = NO; _photo.image = image;
     _photo.frame = CGRectMake(3, 3, ds.width, ds.height);

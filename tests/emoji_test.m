@@ -100,6 +100,58 @@ static void testLayout(void) {
     CFRelease(font);
 }
 
+// Eigene Emojis (Teil C): Prüfvektor, nur bekannte Codes, Breite wie ein Unicode-Emoji
+static void testFrog(void) {
+    NSArray *s = [MeshEmojiText segmentsOf:@"Hi :frosch_kuss::frosch_cool: :frosch_x:"];
+    check(s.count == 4 && [s[0] isEqual:@"Hi "] && [s[1] isEqual:@[@"frosch_kuss"]] && [s[2] isEqual:@[@"frosch_cool"]]
+          && [s[3] isEqual:@" :frosch_x:"], "Prüfvektor: Text, Bild, Bild, Text");
+    NSArray *plain = @[@":)", @":foo:", @"12:30 Uhr", @":frosch_x:", @":Frosch_kuss:", @":frosch_kuss", @"frosch_kuss:", @"::", @": frosch_kuss:"];
+    BOOL untouched = YES;
+    for (NSString *t in plain) {
+        NSArray *p = [MeshEmojiText segmentsOf:t];
+        if (!(p.count == 1 && [p[0] isEqual:t]) || [MeshEmojiText containsEmoji:t]) { untouched = NO; printf("  ersetzt: %s\n", t.UTF8String); }
+    }
+    check(untouched, "nichts anderes wird ersetzt (:) :foo: 12:30 Großschreibung, halbe Codes)");
+    check([MeshEmojiText containsEmoji:@":frosch_roboter:"], "einzelner Code = Emoji");
+    check([[MeshEmojiText keysIn:@"a:frosch_grinsen:b:frosch_denken:"] isEqualToArray:@[@"frosch_grinsen", @"frosch_denken"]], "Codes mitten im Text");
+    s = [MeshEmojiText segmentsOf:@":frosch_kuss:frosch_cool:"];
+    check(s.count == 2 && [s[0] isEqual:@[@"frosch_kuss"]] && [s[1] isEqual:@"frosch_cool:"], "von links gelesen: geteilter Doppelpunkt gilt einmal");
+    NSString *mixed = [@":frosch_kuss:" stringByAppendingString:u(0x1F600)];
+    check([[MeshEmojiText keysIn:mixed] isEqualToArray:@[@"frosch_kuss", @"1f600"]], "Frosch neben Unicode-Emoji");
+
+    // Breite: Frosch-Code misst wie ein Unicode-Emoji, Einfügemarke am Ende der Bilder
+    CTFontRef font = CTFontCreateWithName(CFSTR("Helvetica"), 16, NULL);
+    MeshEmojiLayout *frog = [[MeshEmojiLayout alloc] initWithText:@"Hi :frosch_kuss::frosch_cool:" font:font lineHeight:19 width:CGFLOAT_MAX height:CGFLOAT_MAX lines:1];
+    NSString *uni = cat(@[@"Hi ", u(0x1F600), u(0x1F600)]);
+    MeshEmojiLayout *ref = [[MeshEmojiLayout alloc] initWithText:uni font:font lineHeight:19 width:CGFLOAT_MAX height:CGFLOAT_MAX lines:1];
+    check(frog.lineWidth == ref.lineWidth && CGSizeEqualToSize(frog.size, ref.size), "Frosch-Codes so breit wie zwei Unicode-Emojis");
+    __block NSUInteger n = 0;
+    __block CGFloat right = 0, w = 0;
+    [frog drawInContext:NULL rect:CGRectMake(0, 0, 1000, 30) alignment:kCTLeftTextAlignment emoji:^(NSString *key, CGRect f) {
+        n++; right = MAX(right, CGRectGetMaxX(f)); w = f.size.width;
+    }];
+    check(n == 2 && w == frog.emojiSize, "zwei Bilder in Emoji-Größe");
+    check(right <= frog.lineWidth + 0.5 && right >= frog.lineWidth - frog.emojiSize - 1, "Einfügemarke hinter dem letzten Frosch");
+    MeshEmojiLayout *unknown = [[MeshEmojiLayout alloc] initWithText:@":frosch_x:" font:font lineHeight:19 width:CGFLOAT_MAX height:CGFLOAT_MAX lines:1];
+    __block NSUInteger none = 0;
+    [unknown drawInContext:NULL rect:CGRectMake(0, 0, 1000, 30) alignment:kCTLeftTextAlignment emoji:^(NSString *key, CGRect f) { none++; }];
+    check(none == 0 && unknown.lineWidth > frog.emojiSize * 2, "unbekannter Code wird als Text gesetzt");
+    CFRelease(font);
+
+    // Jedes Bild der Liste liegt im Bundle (Resources/frosch), PNG mit Alpha
+    BOOL files = YES;
+    for (NSString *name in @[@"frosch_grinsen", @"frosch_traenenlachen", @"frosch_herzaugen", @"frosch_schmunzeln", @"frosch_kuss",
+                             @"frosch_schrei", @"frosch_angstschweiss", @"frosch_grimmig", @"frosch_verliebt", @"frosch_cool",
+                             @"frosch_clown", @"frosch_schnauben", @"frosch_staunen", @"frosch_heulen", @"frosch_traurig",
+                             @"frosch_denken", @"frosch_invader", @"frosch_roboter"]) {
+        NSData *d = [NSData dataWithContentsOfFile:[NSString stringWithFormat:@"Resources/frosch/%@.png", name]];
+        const unsigned char *b = d.bytes;
+        if (d.length < 33 || memcmp(b, "\x89PNG", 4) || b[25] != 6) { files = NO; printf("  fehlt/kein RGBA: %s\n", name.UTF8String); }
+        if (![MeshEmojiText containsEmoji:[NSString stringWithFormat:@":%@:", name]]) files = NO;
+    }
+    check(files, "alle 18 Bilder als RGBA-PNG im Bundle und als Code erkannt");
+}
+
 int main(int argc, char **argv) {
     @autoreleasepool {
         [MeshEmojiText setPackDirectory:@"Resources"];
@@ -107,6 +159,7 @@ int main(int argc, char **argv) {
         testSequences();
         testMixed();
         testLayout();
+        testFrog();
         return testsDone();
     }
 }

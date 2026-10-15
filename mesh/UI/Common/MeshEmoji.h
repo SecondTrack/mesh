@@ -11,9 +11,9 @@
 @interface MeshEmoji : NSObject
 + (void)install;                                  // einmal beim Start
 + (BOOL)containsEmoji:(NSString *)text;
-+ (UIImage *)imageForKey:(NSString *)key;         // "1f986", "1f468_200d_1f469" …; nil wenn unbekannt
++ (UIImage *)imageForKey:(NSString *)key;         // "1f986", "1f468_200d_1f469", "frosch_kuss" …; nil wenn unbekannt
 + (NSArray *)keysIn:(NSString *)text;             // Schlüssel der Emojis im Text (Tests)
-+ (NSArray *)allKeys;                              // alle Schlüssel im Pack (Tastatur)
++ (NSArray *)allKeys;                              // alle Schlüssel im Pack (Tastatur; ohne eigene Emojis)
 // Wie sizeWithFont:constrainedToSize:lineBreakMode:, mit Emojis in ihrer gezeichneten Größe.
 + (CGSize)textSize:(NSString *)text font:(UIFont *)font constrainedTo:(CGSize)size;
 + (CGSize)sizeOf:(NSString *)text font:(UIFont *)font constrainedTo:(CGSize)size lines:(NSInteger)lines;

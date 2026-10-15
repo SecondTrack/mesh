@@ -13,6 +13,9 @@
 // Vor setText:/… setzen; nil entfernt. Ihre Höhe kommt über extraHeightWithQuote:reactions:header: dazu.
 - (void)setHeader:(NSString *)text color:(UIColor *)color;
 + (CGFloat)extraHeightWithQuote:(BOOL)quote reactions:(BOOL)reactions header:(BOOL)header;
+// Gruppenchat, eingehend: rundes Absenderbild (MeshAvatarMember) links neben der Blase; nil = keins.
+// indent: Blase um die Bildspalte eingerückt (alle Blasen einer Folge bündig). Vor setText:/… setzen.
+- (void)setSenderAvatar:(NSString *)pubkey indent:(BOOL)indent;
 
 - (void)setText:(NSString *)text fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
 - (void)setImage:(UIImage *)image fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;

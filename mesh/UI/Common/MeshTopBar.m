@@ -55,8 +55,9 @@ static const CGFloat kBarHeight = 66, kChipHeight = 28;
 
 // Chip passt sich der Textbreite an und steht rechtsbündig.
 - (void)updateConnection {
-    BOOL online = [MeshSession shared].anyRelayConnected;
-    NSString *text = online ? L(@"Connected") : L(@"Connecting …");
+    MeshSession *session = [MeshSession shared];
+    BOOL online = session.anyRelayConnected;
+    NSString *text = online ? L(@"Connected") : session.networkReachable ? L(@"Connecting …") : L(@"Offline");
     UIColor *color = online ? [MeshTheme accent] : [MeshTheme faint];
     _chipLabel.text = text;
     _chipLabel.textColor = color;

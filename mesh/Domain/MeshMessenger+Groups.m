@@ -503,7 +503,10 @@ static NSString *labelFor(MeshGroupState *s, NSString *pk, BOOL contact) {
     if (status != MeshGroupInvited || !known) {
         if ([self.store invitationCountFrom:from] >= kMaxInvitesPerInviter || [self.store invitationCountFrom:nil] >= kMaxInvites) return NO;
     }
-    return [self save:s status:MeshGroupInvited inviter:from];
+    if (![self save:s status:MeshGroupInvited inviter:from]) return NO;
+    // Auch eine erneute Einladung (B8.1, abgelaufene) rückt in der Chatliste nach oben: Zeit des Eintreffens.
+    [self.store setGroupArrived:MeshNow() gid:s.gid];
+    return YES;
 }
 
 - (BOOL)receiveState:(MeshGroupState *)s from:(NSString *)from { BOOL keep = NO; return [self receiveState:s from:from keep:&keep]; }

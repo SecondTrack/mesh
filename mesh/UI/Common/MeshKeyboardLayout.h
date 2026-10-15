@@ -34,6 +34,7 @@ typedef NS_ENUM(NSInteger, MeshAutoCap) {
 typedef NS_ENUM(NSInteger, MeshEmojiGroup) {
     MeshEmojiSmileys, MeshEmojiNature, MeshEmojiFood, MeshEmojiActivities,
     MeshEmojiTravel, MeshEmojiObjects, MeshEmojiSymbols, MeshEmojiFlags,
+    MeshEmojiFrog,        // eigene Emojis (MeshCustomEmoji), Reihenfolge der Liste
     MeshEmojiGroupCount,
 };
 
@@ -54,15 +55,16 @@ typedef NS_ENUM(NSInteger, MeshEmojiGroup) {
 // Soll das nächste Zeichen groß sein? before = Text vor der Einfügemarke.
 + (BOOL)shouldCapitalizeAfter:(NSString *)before mode:(MeshAutoCap)mode;
 // Was ⌫ an der Stelle cursor löscht: das ganze zusammengesetzte Zeichen davor (Emoji mit ZWJ,
-// Hautfarbe, Flaggenpaar, Tastenkappe, Tag-Folge, Akzent-Kombination, CRLF).
+// Hautfarbe, Flaggenpaar, Tastenkappe, Tag-Folge, Akzent-Kombination, CRLF, eigenes Emoji ":name:").
 + (NSRange)deleteRangeIn:(NSString *)text cursor:(NSUInteger)cursor;
 
 // Emojis
 + (NSArray *)codepointsForEmojiKey:(NSString *)key;          // "1f468_200d_1f469" -> @[0x1F468, 0x200D, 0x1F469]
-+ (NSString *)stringForEmojiKey:(NSString *)key;              // gültiger Unicode-Text, mit FE0F wo nötig
++ (NSString *)stringForEmojiKey:(NSString *)key;              // gültiger Unicode-Text, mit FE0F wo nötig; eigenes: ":name:"
 + (BOOL)isHiddenEmojiKey:(NSString *)key;                     // Hautfarben, nackte Ziffern, einzelne Regionalbuchstaben
 + (MeshEmojiGroup)groupForEmojiKey:(NSString *)key;
-// Alle sichtbaren Schlüssel nach Gruppe (MeshEmojiGroupCount Arrays), je Gruppe nach Codepunkten sortiert.
+// Alle sichtbaren Schlüssel nach Gruppe (MeshEmojiGroupCount Arrays), je Gruppe nach Codepunkten sortiert;
+// MeshEmojiFrog enthält immer die eigenen Emojis in der Reihenfolge ihrer Liste.
 + (NSArray *)groupEmojiKeys:(NSArray *)keys;
 
 @end

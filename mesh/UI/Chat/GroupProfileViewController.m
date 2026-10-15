@@ -148,10 +148,9 @@ static const CGFloat kAvatar = 104, kRow = 58, kRowAvatar = 40;
         row.tag = (NSInteger)i;
         row.showsTouchWhenHighlighted = YES;
         [row addTarget:self action:@selector(tapMember:) forControlEvents:UIControlEventTouchUpInside];
-        // Nicht-Kontakte mit Identicon (kein Profilbild-Austausch), Kontakte wie überall
-        BOOL contact = [s isAccepted:pk];
+        // Ich mit eigenem Profilbild; Kontakte mit ihrem, Nicht-Kontakte und Kontakte ohne Bild mit Identicon (wie im Chat)
         MeshAvatarView *a = [[MeshAvatarView alloc] initWithFrame:CGRectMake(18, (kRow - kRowAvatar) / 2, kRowAvatar, kRowAvatar)
-                                                           source:[pk isEqualToString:me] ? MeshAvatarSelf : contact ? MeshAvatarContact : MeshAvatarIdenticon];
+                                                           source:[pk isEqualToString:me] ? MeshAvatarSelf : MeshAvatarMember];
         a.pubkey = pk;
         a.userInteractionEnabled = NO;
         [row addSubview:a];

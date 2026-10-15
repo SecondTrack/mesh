@@ -279,16 +279,7 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
 - (NSString *)noteText {
     if (_isTeam) return L(@"Anonymous: the team can't see who you are – only what you write here.");
     if (!_isGroup || !_group) return nil;
-    switch (_group.status) {
-        case MeshGroupJoining:
-        case MeshGroupLinkJoining: return L(@"Waiting for the admin to add you…");
-        case MeshGroupJoinFailed:  return L(@"Joining failed");
-        case MeshGroupInviteExpired: return L(@"Invitation expired");
-        case MeshGroupLeft:      return L(@"You left the group");
-        case MeshGroupRemoved:   return L(@"You are no longer in the group");
-        case MeshGroupDissolved: return L(@"Group dissolved");
-        default:                 return nil;
-    }
+    return MeshGroupStatusNote(_group.status);
 }
 
 // Nur Mitglieder schreiben; sonst ist der Chat nur lesbar (die Eingabeleiste verschwindet).
@@ -574,10 +565,11 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     return n;
 }
 
-// Zeile über der Blase: Absender (Gruppe, eingehend) bzw. "an alle" (Rundbrief im Team-Chat).
-- (NSString *)headerOf:(MeshMessage *)m {
+// Zeile über der Blase: Absender (Gruppe, eingehend, nur über der ersten Blase einer Folge) bzw.
+// "an alle" (Rundbrief im Team-Chat). i: Zeile in _messages (Folgen hängen an den Nachbarn).
+- (NSString *)headerOf:(MeshMessage *)m at:(NSUInteger)i {
     if (m.rowId == kDividerRow || m.kind == MeshPayloadNotice || m.fromMe) return nil;
-    if (_isGroup && m.sender.length) return [self senderNameOf:m.sender];
+    if (_isGroup && m.sender.length) return MeshRunPositionAt(_messages, i) & MeshRunFirst ? [self senderNameOf:m.sender] : nil;
     if (_isTeam && [m.sender isEqualToString:MeshSenderAll]) return L(@"to everyone");
     return nil;
 }
@@ -1067,15 +1059,15 @@ static NSCache *Heights(void) {
     }
     NSString *hk = [NSString stringWithFormat:@"%@|%@|%lld|%d|%d|%@|%.0f|%d|%d|%d|%d|%@|%d", _identity, _peerHex, m.rowId, (int)m.kind,
                     m.status, reactionsOf(m), t.bounds.size.width, m.width, m.height, _acceptedState, m.replyTo.length > 0, extra,
-                    [self headerOf:m] != nil];   // Kopfzeile (Absender/"an alle") ändert die Höhe
+                    [self headerOf:m at:ip.row] != nil];   // Kopfzeile (Absender/"an alle", Folgenanfang) ändert die Höhe
     NSNumber *known = [Heights() objectForKey:hk];
     if (known) return known.floatValue;
-    CGFloat h = [self measureRow:m width:t.bounds.size.width];
+    CGFloat h = [self measureRow:m at:ip.row width:t.bounds.size.width];
     [Heights() setObject:@(h) forKey:hk];
     return h;
 }
 
-- (CGFloat)measureRow:(MeshMessage *)m width:(CGFloat)tableWidth {
+- (CGFloat)measureRow:(MeshMessage *)m at:(NSUInteger)row width:(CGFloat)tableWidth {
     CGSize size; NSString *text = nil, *qa = nil, *qt = nil;
     CGFloat w = tableWidth, base;
     switch ([self bubbleFor:m imageSize:&size text:&text]) {
@@ -1093,7 +1085,7 @@ static NSCache *Heights(void) {
         default:                base = [MeshBubbleCell heightForText:text width:w]; break;
     }
     return base + [MeshBubbleCell extraHeightWithQuote:[self quoteFor:m author:&qa text:&qt] reactions:reactionsOf(m).length > 0
-                                                header:[self headerOf:m] != nil];
+                                                header:[self headerOf:m at:row] != nil];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)t cellForRowAtIndexPath:(NSIndexPath *)ip {
@@ -1109,8 +1101,12 @@ static NSCache *Heights(void) {
     }
     MeshBubbleCell *cell = [t dequeueReusableCellWithIdentifier:@"bubble"];
     if (!cell) cell = [[MeshBubbleCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"bubble"];
-    NSString *head = [self headerOf:m];
+    NSString *head = [self headerOf:m at:ip.row];
     [cell setHeader:head color:_isGroup ? [MeshTheme senderColor:m.sender] : [MeshTheme muted]];
+    // Gruppe, eingehend: alle Blasen einer Folge eingerückt, das Absenderbild neben der letzten. Wiederverwendete
+    // Zellen immer zurücksetzen. Die Lage in der Folge ändert keine Höhe außer über die Kopfzeile (steht im Schlüssel).
+    MeshRunPosition run = _isGroup ? MeshRunPositionAt(_messages, ip.row) : MeshRunNone;
+    [cell setSenderAvatar:(run & MeshRunLast) ? m.sender : nil indent:(run & MeshRunIn) != 0];
     NSString *qa = nil, *qt = nil;
     if ([self quoteFor:m author:&qa text:&qt]) {
         [cell setQuoteAuthor:qa text:qt];

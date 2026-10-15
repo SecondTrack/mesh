@@ -32,3 +32,15 @@ extern NSString *const MeshSenderAll, *const MeshSenderApp;
 
 - (NSString *)key;   // Ziel für Reaktionen und Löschen: cmid, bei alten Nachrichten die Event-ID
 @end
+
+// Folgen im Gruppenchat (wie Signal/WhatsApp): aufeinanderfolgende eingehende Nachrichten desselben
+// Absenders, höchstens kMeshRunGap Sekunden auseinander, am selben Tag (Ortszeit); Systemzeilen und der
+// Ungelesen-Trenner (beide kind Notice) beenden eine Folge. Name über der ersten, Bild neben der letzten.
+typedef NS_OPTIONS(NSUInteger, MeshRunPosition) {
+    MeshRunNone  = 0,        // eigene Nachricht, Systemzeile oder ohne Absender: kein Teil einer Folge
+    MeshRunFirst = 1 << 0,
+    MeshRunLast  = 1 << 1,
+    MeshRunIn    = 1 << 2    // gehört zu einer Folge (auch mittendrin)
+};
+extern const long long kMeshRunGap;   // 180 s
+MeshRunPosition MeshRunPositionAt(NSArray *messages, NSUInteger index);   // MeshMessage*, älteste zuerst

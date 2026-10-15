@@ -6,6 +6,7 @@
 // Pack (Codepunkte ohne FE0F, wie die Noto-Dateinamen). Fehlt die volle Folge, zerfällt sie in Teile,
 // die es gibt (ohne Hautfarbe, ohne Tags, ZWJ-Teile, Regionalbuchstaben). Was als Text bleibt, verliert
 // unsichtbare Reste (FE0F, ZWJ, Tags), die die Schrift von iOS 6 als Kästchen zeigen würde.
+// Eigene Emojis (":frosch_kuss:", MeshCustomEmoji) sind ein Teil mit dem Namen als Schlüssel.
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreText/CoreText.h>

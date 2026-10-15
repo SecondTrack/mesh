@@ -147,12 +147,12 @@ static void testEmoji(void) {
     }
     check(keys.count > 3000, "emoji.idx gelesen");
     NSArray *groups = [MeshKeyboardLayout groupEmojiKeys:keys];
-    check(groups.count == MeshEmojiGroupCount, "acht Gruppen");
+    check(groups.count == MeshEmojiGroupCount && MeshEmojiGroupCount == 9, "neun Gruppen (mit Frosch)");
     NSUInteger total = 0;
     BOOL filled = YES, tones = NO;
     NSMutableSet *seen = [NSMutableSet set];
     for (NSArray *g in groups) {
-        if (g.count < (g == groups[MeshEmojiFlags] ? 5 : 20)) filled = NO;
+        if (g.count < (g == groups[MeshEmojiFlags] ? 5 : g == groups[MeshEmojiFrog] ? 18 : 20)) filled = NO;
         total += g.count;
         for (NSString *k in g) { [seen addObject:k]; if ([k rangeOfString:@"1f3fb"].location != NSNotFound || [k rangeOfString:@"1f3ff"].location != NSNotFound) tones = YES; }
     }
@@ -173,12 +173,41 @@ static void testEmoji(void) {
     check(whole, "jedes Emoji mit einem Löschen weg");
 }
 
+// Eigene Emojis (Teil C): Gruppe "Frosch" mit der Liste v1 in ihrer Reihenfolge, Text = Code, ⌫ = ganzer Code
+static void testFrog(void) {
+    NSArray *spec = @[@"frosch_grinsen", @"frosch_traenenlachen", @"frosch_herzaugen", @"frosch_schmunzeln", @"frosch_kuss",
+                      @"frosch_schrei", @"frosch_angstschweiss", @"frosch_grimmig", @"frosch_verliebt", @"frosch_cool",
+                      @"frosch_clown", @"frosch_schnauben", @"frosch_staunen", @"frosch_heulen", @"frosch_traurig",
+                      @"frosch_denken", @"frosch_invader", @"frosch_roboter"];
+    NSArray *groups = [MeshKeyboardLayout groupEmojiKeys:@[@"1f600", @"frosch_cool", @"2764"]];
+    check([groups[MeshEmojiFrog] isEqualToArray:spec], "Frosch-Gruppe = Liste v1 in Reihenfolge");
+    check([groups[MeshEmojiSmileys] isEqualToArray:@[@"1f600"]] && [groups[MeshEmojiSymbols] isEqualToArray:@[@"2764"]],
+          "Frösche nicht in anderen Gruppen");
+    check([MeshKeyboardLayout groupForEmojiKey:@"frosch_kuss"] == MeshEmojiFrog, "Frosch-Schlüssel -> Gruppe Frosch");
+    check(![MeshKeyboardLayout isHiddenEmojiKey:@"frosch_kuss"], "Frosch sichtbar");
+    check([MeshKeyboardLayout codepointsForEmojiKey:@"frosch_kuss"].count == 0, "Frosch hat keine Codepunkte");
+    check([[MeshKeyboardLayout stringForEmojiKey:@"frosch_kuss"] isEqualToString:@":frosch_kuss:"], "Tippen fügt den Code ein");
+
+    NSString *s = @"Hi :frosch_kuss::frosch_cool:";
+    NSRange r = [MeshKeyboardLayout deleteRangeIn:s cursor:s.length];
+    check(NSEqualRanges(r, NSMakeRange(16, 13)), "⌫ löscht den ganzen letzten Code");
+    r = [MeshKeyboardLayout deleteRangeIn:s cursor:16];
+    check(NSEqualRanges(r, NSMakeRange(3, 13)), "⌫ vor dem zweiten Code löscht den ersten ganz");
+    r = [MeshKeyboardLayout deleteRangeIn:@"a :frosch_x:" cursor:12];
+    check(r.length == 1, "unbekannter Code: nur ein Zeichen");
+    r = [MeshKeyboardLayout deleteRangeIn:@":frosch_kuss:frosch_cool:" cursor:25];
+    check(r.length == 1, "\":frosch_cool:\" ohne eigenen Anfang (Rest nach erstem Code) ist Text");
+    r = [MeshKeyboardLayout deleteRangeIn:@"x:)" cursor:3];
+    check(r.length == 1, "\":)\" bleibt Text");
+}
+
 int main(void) {
     @autoreleasepool {
         testLayout();
         testCaps();
         testDelete();
         testEmoji();
+        testFrog();
     }
     return testsDone();
 }

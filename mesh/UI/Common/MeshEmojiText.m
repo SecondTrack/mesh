@@ -1,4 +1,5 @@
 #import "MeshEmojiText.h"
+#import "MeshCustomEmoji.h"
 
 static NSString *const kEmojiKeyAttribute = @"MeshEmojiKey";
 static NSString *gPackDir;
@@ -162,7 +163,8 @@ static BOOL mayContainEmoji(NSString *text) {
     [text getCharacters:b range:NSMakeRange(0, n)];
     BOOL found = NO;
     for (NSUInteger i = 0; i < n && !found; i++)
-        found = CFStringIsSurrogateHighCharacter(b[i]) || (b[i] >= 0x203C && b[i] <= 0x3299) || b[i] == 0xFE0F || b[i] == 0x20E3;
+        found = CFStringIsSurrogateHighCharacter(b[i]) || (b[i] >= 0x203C && b[i] <= 0x3299) || b[i] == 0xFE0F || b[i] == 0x20E3
+             || (b[i] == ':' && [MeshCustomEmoji codeAt:b length:n index:i name:NULL]);   // eigenes Emoji (nicht "12:30")
     if (b != stackBuf) free(b);
     return found;
 }
@@ -189,7 +191,8 @@ static NSString *plainText(const unichar *b, NSUInteger n, NSUInteger from, NSUI
     return s;
 }
 
-// Text in Teile: NSString für Text, NSArray (Schlüssel) für ein Emoji.
+// Text in Teile: NSString für Text, NSArray (Schlüssel) für ein Emoji. Eigene Emojis ":name:" sind ein
+// Teil mit dem Namen als Schlüssel; unbekannte Codes und alles andere mit ":" bleiben Text.
 static NSArray *segments(NSString *text) {
     NSUInteger n = text.length;
     NSMutableArray *out = [NSMutableArray array];
@@ -198,6 +201,15 @@ static NSArray *segments(NSString *text) {
     [text getCharacters:b range:NSMakeRange(0, n)];
     NSUInteger i = 0, plain = 0;
     while (i < n) {
+        NSString *custom = nil;   // eigenes Emoji ":name:" (Schlüssel = Name)
+        NSUInteger clen = b[i] == ':' ? [MeshCustomEmoji codeAt:b length:n index:i name:&custom] : 0;
+        if (clen) {
+            if (i > plain) { NSString *s = plainText(b, n, plain, i); if (s.length) [out addObject:s]; }
+            [out addObject:@[custom]];
+            i += clen;
+            plain = i;
+            continue;
+        }
         NSMutableArray *cps = [NSMutableArray array];
         NSUInteger len = emojiAt(b, n, i, cps);
         NSArray *keys = len ? availableKeys(cps) : nil;

@@ -7,7 +7,8 @@ typedef NS_ENUM(NSInteger, MeshAvatarSource) {
     MeshAvatarContact,     // Bild des Kontakts mit diesem Pubkey
     MeshAvatarSelf,        // eigenes Profilbild
     MeshAvatarIdenticon,   // immer nur das Identicon
-    MeshAvatarPreview      // nur das gesetzte picture (Profil bearbeiten), sonst die Silhouette
+    MeshAvatarPreview,     // nur das gesetzte picture (Profil bearbeiten), sonst die Silhouette
+    MeshAvatarMember       // Gruppenmitglied: Bild des angenommenen Kontakts, sonst das Identicon (Fremde nie ein Foto)
 };
 
 @interface MeshAvatarView : UIView

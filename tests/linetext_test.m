@@ -33,6 +33,14 @@ static void testInsertDelete(void) {
     check([t deleteBackward] && !t.text.length, "⌫ löscht Zeichen mit Variantenwahl ganz");
     t.text = @"ab";
     check([t deleteBackward] && [t.text isEqualToString:@"a"], "⌫ löscht einen Buchstaben");
+
+    // Eigenes Emoji: ein Code ist eine Einheit
+    t.text = @"Hi ";
+    check([t insert:@":frosch_kuss:"] && [t insert:@":frosch_cool:"], "Frosch-Codes einfügen");
+    check([t deleteBackward] && [t.text isEqualToString:@"Hi :frosch_kuss:"], "⌫ löscht den ganzen Frosch-Code");
+    check([t deleteBackward] && [t.text isEqualToString:@"Hi "], "⌫ löscht auch den nächsten ganz");
+    t.text = @"Hi :frosch_x:";
+    check([t deleteBackward] && [t.text isEqualToString:@"Hi :frosch_x"], "unbekannter Code: ⌫ löscht ein Zeichen");
 }
 
 static void testSelection(void) {

@@ -3,7 +3,7 @@
 #import "MeshTheme.h"
 #import "MeshGlyphs.h"
 
-static const CGFloat kBarHeight = 46;
+static const CGFloat kBarHeight = 52;   // wie die Kopfzeile im Chat
 
 @implementation MeshPageHeader
 

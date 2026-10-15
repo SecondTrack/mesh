@@ -11,7 +11,8 @@
 - (BOOL)setGroupStatus:(MeshGroupStatus)status gid:(NSString *)gid;
 - (NSArray *)groupIds;                                  // alle bekannten, älteste zuerst
 - (NSArray *)groupIdsWithStatus:(MeshGroupStatus)status;
-- (long long)groupCreated:(NSString *)gid;              // angelegt bzw. Einladung erhalten (Unix-Sekunden)
+- (long long)groupCreated:(NSString *)gid;              // angelegt bzw. (zuletzt) Einladung erhalten (Unix-Sekunden)
+- (BOOL)setGroupArrived:(long long)time gid:(NSString *)gid;   // Einladung (erneut) erhalten: Zeit für die Chatliste
 - (BOOL)deleteGroup:(NSString *)gid;                    // mit Nachrichten (+ Tombstones) und Einladungen
 - (int)invitationCountFrom:(NSString *)inviter;         // offene Einladungen an mich (nil = alle)
 // Gruppenbild (B7): Base64 der rohen Bytes, versiegelt an die gid. nil/@"" = entfernen. Nur bekannte Gruppen.

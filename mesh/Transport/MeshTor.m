@@ -190,6 +190,20 @@ static int bootstrapPercent(NSString *reply) {
 #endif
 }
 
+- (void)wakeUp {
+#if MESH_USE_TOR
+    if (!_since) return;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        int fd = connectControl();
+        if (fd < 0) return;
+        NSData *cookie = [NSData dataWithContentsOfFile:kCookiePath];
+        if (cookie.length == 32 && [command(fd, [@"AUTHENTICATE " stringByAppendingString:hex(cookie)]) hasPrefix:@"250"])
+            command(fd, @"SIGNAL ACTIVE");   // ab Tor 0.4.0; holt Verzeichnis und Kreise sofort neu
+        close(fd);
+    });
+#endif
+}
+
 // Läuft schon ein Tor mit diesem Datenordner? Tor hält seine Datei "lock" per flock fest. Nur dann
 // ein eigenes starten: ein zweites Tor löscht beim Start den Steuer-Socket des ersten (unlink vor
 // bind) und beendet sich am Lock; übrig bliebe ein laufendes, aber unerreichbares Tor.

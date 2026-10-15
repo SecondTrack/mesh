@@ -21,6 +21,7 @@
 #import "MeshHex.h"
 #import "MeshBech32.h"
 #import "MeshTor.h"
+#import "MeshReachability.h"
 #import "MeshCertTime.h"
 #import "MeshMemory.h"
 #import "MeshLog.h"
@@ -79,7 +80,20 @@ static const NSTimeInterval kMediaMoveIdle = 2;      // so lange nach der letzte
     _pool = [[MeshRelayPool alloc] initWithURLs:MeshDefaultRelays()];
     _pool.delegate = self;
     [[MeshTor shared] start];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(networkChanged)
+                                                 name:MeshReachabilityChangedNotification object:nil];
+    [[MeshReachability shared] start];
 }
+
+// Netz wieder da: Tor und Relays gleich weiterarbeiten lassen statt auf ihren Backoff (bis 2 min) zu
+// warten. Verbunden wird weiter nur, wenn der Transport bereit ist (MeshRelayPool, nie ohne Tor).
+- (void)networkChanged {
+    if (![MeshReachability shared].reachable) return;
+    [[MeshTor shared] wakeUp];
+    if (_unlocked) [_pool reconnectNow];
+}
+
+- (BOOL)networkReachable { return [MeshReachability shared].reachable; }
 
 - (MeshIdentity *)identityForSlot:(int)slot {
     for (MeshIdentity *i in _allIdentities) if (i.slot == slot) return i;

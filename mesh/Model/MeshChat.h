@@ -11,12 +11,12 @@ BOOL MeshIsTeamChat(NSString *chat);
 
 typedef NS_ENUM(NSInteger, MeshGroupStatus) {        // Werte stehen in der Datenbank (groups.status)
     MeshGroupInvited   = 0,   // Einladung offen
-    MeshGroupJoining   = 1,   // angenommen, der Admin hat mich noch nicht aufgenommen
+    MeshGroupJoining   = 1,   // angenommen, gj unterwegs; das Gerät des Admins antwortet automatisch mit gs
     MeshGroupMember    = 2,
     MeshGroupLeft      = 3,   // selbst verlassen
     MeshGroupRemoved   = 4,   // vom Admin entfernt
     MeshGroupDissolved = 5,
-    MeshGroupLinkJoining = 6,  // per Link beigetreten (B10), der Admin hat mich noch nicht aufgenommen
+    MeshGroupLinkJoining = 6,  // per Link beigetreten (B10), gs vom Gerät des Admins steht noch aus
     MeshGroupJoinFailed = 7,   // Link-Beitritt: nach 7 Tagen kein Zustand
     MeshGroupInviteExpired = 8 // Einladung abgelaufen: der Admin hat gewechselt (B9)
 };
@@ -39,3 +39,12 @@ typedef NS_ENUM(NSInteger, MeshGroupStatus) {        // Werte stehen in der Date
 @property (nonatomic, assign) MeshGroupStatus groupStatus;
 @property (nonatomic, copy)   NSString *inviter;       // Einladung: Anzeigename des Admins
 @end
+
+// Chatliste: neueste zuerst (ts), bei Gleichstand wie geliefert; der Team-Chat (isTeam) bleibt oben.
+void MeshSortChatList(NSMutableArray *chats);
+// Zeit einer Gruppenzeile: letzte Nachricht/Systemzeile oder Eintreffen der Einladung, das Spätere.
+long long MeshGroupRowTime(long long lastMessage, long long arrived);
+// Gruppenstand als Text: Zeile in der Chatliste bzw. Hinweis im Chat (warum nicht geschrieben werden
+// kann). nil = normal (Vorschau bzw. kein Hinweis).
+NSString *MeshGroupStatusPreview(MeshGroupStatus status);
+NSString *MeshGroupStatusNote(MeshGroupStatus status);

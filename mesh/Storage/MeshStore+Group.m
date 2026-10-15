@@ -85,6 +85,16 @@ static NSString *recordContext(MeshGroupRecord kind, NSString *gid) { return [NS
     return t;
 }
 
+- (BOOL)setGroupArrived:(long long)time gid:(NSString *)gid {
+    sqlite3_stmt *st = [self prepare:"UPDATE groups SET created=? WHERE gid=?"];
+    if (!st) return NO;
+    sqlite3_bind_int64(st, 1, time);
+    bindText(st, 2, gid);
+    BOOL ok = sqlite3_step(st) == SQLITE_DONE && sqlite3_changes(self.db) > 0;
+    sqlite3_finalize(st);
+    return ok;
+}
+
 - (BOOL)deleteGroup:(NSString *)gid {
     NSString *chat = MeshGroupChat(gid);
     BOOL ok = sqlite3_exec(self.db, "BEGIN", NULL, NULL, NULL) == SQLITE_OK

@@ -40,9 +40,10 @@ MESH_DIRS   := $(shell find mesh -type d)
 Mesh_FILES  = $(shell find mesh -name '*.m' | sort)
 
 # Frameworks (QuartzCore = layer; AVFoundation/CoreMedia/CoreVideo = QR-Kamera-Scan und Videos;
-# MediaPlayer = empfangene Videos; CFNetwork = VoIP-Markierung der Sockets).
+# MediaPlayer = empfangene Videos; CFNetwork = VoIP-Markierung der Sockets;
+# SystemConfiguration = Netz da? für den Offline-Hinweis).
 Mesh_FRAMEWORKS = UIKit CoreGraphics Foundation Security QuartzCore AVFoundation CoreMedia CoreVideo AudioToolbox Accelerate \
-                  MediaPlayer CFNetwork CoreText
+                  MediaPlayer CFNetwork CoreText SystemConfiguration
 
 # ARC + Header-Suchpfade (eigene Schichten + gevendorte Lib-Header).
 Mesh_CFLAGS  = -fobjc-arc -O2 -Wall

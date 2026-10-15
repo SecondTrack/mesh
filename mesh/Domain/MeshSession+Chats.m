@@ -262,13 +262,14 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
             NSString *gid = MeshGroupOfChat(c.pubkey);
             if (gid) {
                 if (![self fillGroupRow:c gid:gid identity:i]) continue;
+                c.ts = MeshGroupRowTime(c.ts, [i.store groupCreated:gid]);   // erneute Einladung nach alten Nachrichten
                 [groupsSeen addObject:gid];
             } else {
                 c.name = contactDisplayName(c.pubkey, c.ownName, c.profileName, !c.unknown);
             }
             [chats addObject:c];
         }
-        // Gruppen ohne Nachricht (Einladung, gerade angelegt)
+        // Gruppen ohne Nachricht (Einladung, gerade angelegt): Zeit des Eintreffens bzw. Anlegens
         for (NSString *gid in [i.store groupIds]) {
             if ([groupsSeen containsObject:gid]) continue;
             MeshChat *c = [[MeshChat alloc] init];
@@ -280,10 +281,8 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
             if ([self fillGroupRow:c gid:gid identity:i]) [chats addObject:c];
         }
     }
-    [chats sortUsingComparator:^NSComparisonResult(MeshChat *a, MeshChat *b) {
-        return a.ts == b.ts ? NSOrderedSame : a.ts > b.ts ? NSOrderedAscending : NSOrderedDescending;
-    }];
-    if (team) [chats insertObject:team atIndex:0];
+    if (team) [chats addObject:team];
+    MeshSortChatList(chats);   // neueste zuerst, Einladungen wie Chats; Team-Chat angeheftet
     return chats;
 }
 

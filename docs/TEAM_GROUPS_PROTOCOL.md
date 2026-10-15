@@ -256,3 +256,21 @@ Nicht-Admin, r nicht größer, Name leer, Rundbrief ohne t-Tag, Rundbrief mit `\
 - Prüfvektoren: Link `meshg:1:0123456789abcdef:<64×a>:00112233445566778899aabbccddeeff` -> gid,
   Admin a…a, k. gj mit k: `\1mesh:gj:0123456789abcdef|QmVu|00112233445566778899aabbccddeeff` -> Name
   "Ben", k. Zustand mit o: wie B6 plus `,"o":1` nach "tm".
+
+---------------------------------------------------------------------------------------------------
+## Teil C: Eigene Emojis (Frosch-Set)
+
+- Eigene Emojis sind keine Unicode-Zeichen. Im Text stehen sie als Code `:<name>:` mit <name> aus der
+  festen Liste unten (nur [a-z_], genau diese Schreibweise). Beide Apps liefern dieselben Bilder mit
+  (Quelle: ~/steam-worker/emoji-frosch/<name>.png, transparenter Hintergrund).
+- Anzeige: In Blasen, Vorschauen, Namen und Eingabefeldern wird jeder bekannte Code durch das Bild in
+  Emoji-Größe ersetzt (wie ein Unicode-Emoji). Unbekannte Codes bleiben Text. Nichts anderes wird ersetzt.
+- Tastatur: eigene Kategorie "Frosch" (Symbol: frosch_grinsen) in der Emoji-Auswahl; Tippen fügt den
+  Code ein (als EIN Zeichen behandeln: ⌫ löscht den ganzen Code, Cursor nie mitten im Code).
+- Kein Einfluss auf Protokoll, Verschlüsselung oder Grenzen: der Code ist normaler Text.
+- Liste v1 (Reihenfolge = Reihenfolge in der Tastatur):
+  frosch_grinsen, frosch_traenenlachen, frosch_herzaugen, frosch_schmunzeln, frosch_kuss, frosch_schrei,
+  frosch_angstschweiss, frosch_grimmig, frosch_verliebt, frosch_cool, frosch_clown, frosch_schnauben,
+  frosch_staunen, frosch_heulen, frosch_traurig, frosch_denken, frosch_invader, frosch_roboter
+- Prüfvektor: "Hi :frosch_kuss::frosch_cool: :frosch_x:" -> Text "Hi ", Bild frosch_kuss, Bild frosch_cool,
+  Text " :frosch_x:".

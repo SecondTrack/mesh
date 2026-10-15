@@ -71,6 +71,7 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 - (BOOL)torFailed;                // Dienst seit Minuten nicht erreichbar
 - (int)torBootstrapPercent;
 - (BOOL)torFirstStart;            // Tor hat noch kein Netz-Verzeichnis: erster Start dauert deutlich länger
+- (BOOL)networkReachable;          // NO: kein WLAN (MeshReachability); Mesh ist dann offline nutzbar
 - (BOOL)clockPlausible;   // NO: Geräteuhr vor dem Build-Datum, Zertifikatsablauf nur grob prüfbar
 
 - (void)setOpenChat:(NSString *)peerHex;   // sichtbarer Chat (nil = keiner): Neues gilt dort als gelesen

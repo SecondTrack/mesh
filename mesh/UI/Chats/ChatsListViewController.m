@@ -26,6 +26,8 @@
 #import "GroupInviteViewController.h"
 #import "GroupJoinLinkViewController.h"
 
+static const CGFloat kOfflineHeight = 22;   // Hinweis "Offline – keine WLAN-Verbindung"
+
 @interface ChatsListViewController () <UITableViewDataSource, UITableViewDelegate, MeshEmojiFieldDelegate>
 @end
 
@@ -39,6 +41,8 @@
     BOOL _loaded, _stale;     // _stale: verdeckt geändert, beim nächsten Erscheinen neu laden
     BOOL _prepared;           // verdeckt schon neu gelesen: beim Erscheinen nur noch die Tabelle füllen
     BOOL _prepareQueued;      // prepareHidden steht an
+    UILabel *_offline;        // "Offline – keine WLAN-Verbindung" unter der Leiste, nur ohne Netz
+    UIView *_searchBox;
 }
 
 - (void)loadView {
@@ -69,6 +73,15 @@
     [MeshKeyboard attachTo:_search];
     [search addSubview:_search];
     [self.view addSubview:search];
+    _searchBox = search;
+
+    // Ohne WLAN: dezenter Hinweis zwischen Leiste und Suche (updateOffline schiebt Suche und Liste)
+    _offline = [[UILabel alloc] initWithFrame:CGRectMake(0, [MeshTopBar height], W, kOfflineHeight)];
+    _offline.text = L(@"Offline – no Wi-Fi connection");
+    _offline.font = [MeshTheme timeFont]; _offline.textColor = [MeshTheme muted];
+    _offline.backgroundColor = [MeshTheme surface]; _offline.textAlignment = NSTextAlignmentCenter;
+    _offline.hidden = YES;
+    [self.view addSubview:_offline];
 
     // Tabelle
     CGFloat listTop = sy + 50, barH = [MeshTabBar height];
@@ -105,6 +118,18 @@
     MESH_WEAK ChatsListViewController *weakSelf = self;
     bar.onSelect = ^(MeshTab tab) { [weakSelf tapMe]; };
     [self.view addSubview:bar];
+    [self updateOffline];
+}
+
+// Hinweis ein/aus; Suche und Liste rücken um seine Höhe. Kommt das Netz zurück, verbinden Tor und
+// Relays von selbst im Hintergrund (MeshSession networkChanged), der Hinweis geht weg.
+- (void)updateOffline {
+    BOOL show = ![MeshSession shared].networkReachable;
+    if (show == !_offline.hidden && _offline) return;
+    _offline.hidden = !show;
+    CGFloat dy = show ? kOfflineHeight : -kOfflineHeight;
+    CGRect f = _searchBox.frame; f.origin.y += dy; _searchBox.frame = f;
+    f = _table.frame; f.origin.y += dy; f.size.height -= dy; _table.frame = f;
 }
 
 // Unter iOS 4 sind Delegates unsafe_unretained, hier selbst lösen.
@@ -121,6 +146,8 @@
     // Avatare zeichnen sich selbst neu.
     for (NSString *name in @[MeshMessagesChangedNotification, MeshIdentityChangedNotification])
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(messagesChanged) name:name object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateOffline)
+                                                 name:MeshReachabilityChangedNotification object:nil];
 }
 
 // Geladen wird beim ersten Erscheinen und danach nur, wenn sich verdeckt etwas geändert hat: Liste neu
@@ -224,9 +251,8 @@
         cell.nameLabel.textColor = c.unknown && !c.isGroup && !c.isTeam ? [MeshTheme muted] : [MeshTheme ink];
         if (c.fromMe) preview = [L(@"You: ") stringByAppendingString:preview];
         else if (c.isGroup && c.senderName.length && c.lastKind != MeshPayloadNotice) preview = [NSString stringWithFormat:@"%@: %@", c.senderName, preview];
-        if (c.isGroup && c.groupStatus == MeshGroupLinkJoining) preview = L(@"Joining…");
-        else if (c.isGroup && c.groupStatus == MeshGroupJoinFailed) preview = L(@"Joining failed");
-        else if (c.isGroup && c.groupStatus == MeshGroupInviteExpired) preview = L(@"Invitation expired");
+        NSString *state = c.isGroup ? MeshGroupStatusPreview(c.groupStatus) : nil;   // Beitritt läuft, fehlgeschlagen, abgelaufen
+        if (state) preview = state;
         cell.previewLabel.text = preview;
     }
     cell.timeLabel.text = c.ts ? [MeshFormat shortTime:c.ts] : @"";

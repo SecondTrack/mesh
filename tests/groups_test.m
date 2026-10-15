@@ -212,6 +212,7 @@ static void testGroups(void) {
     check([anna.messenger pendingInvitesForGroup:gid].count == 2, "only accepted contacts invited");
     [anna deliverTo:all];
     check(statusOf(ben, gid) == MeshGroupInvited, "ben got invitation");
+    check([ben.store groupCreated:gid] >= MeshNow() - 5, "invitation carries its arrival time");
     check(![cleo.store groupIds].count, "invitation from non-accepted contact rejected");
 
     // Einladung von jemandem, der nicht Admin ist
@@ -371,10 +372,12 @@ static void testGroups(void) {
 
     // Auflösen: Ben wieder rein (B8.1: jede Einladung r+1, also auch für früher Entfernte gültig), dann geht der Admin
     long long rBefore = [anna.messenger groupState:gid status:NULL inviter:NULL].revision;
+    [ben.store setGroupArrived:100 gid:gid];   // alte Gruppe, lange her
     [anna.messenger invite:@[ben.pubkey] toGroup:gid];
     check([anna.messenger groupState:gid status:NULL inviter:NULL].revision == rBefore + 1, "B8.1 invite bumps revision");
     [anna deliverTo:all];
     check(statusOf(ben, gid) == MeshGroupInvited, "B8.1 re-invite of a removed member accepted");
+    check([ben.store groupCreated:gid] >= MeshNow() - 5, "re-invite: arrival time renewed (list puts it on top)");
     [ben.messenger acceptInvite:gid myName:@"Ben"];
     [ben deliverTo:all]; [anna deliverTo:all];
     check(statusOf(ben, gid) == MeshGroupMember, "ben back");

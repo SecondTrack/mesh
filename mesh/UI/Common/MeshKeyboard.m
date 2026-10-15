@@ -45,6 +45,7 @@ static NSMutableArray *recentEmojis(void) {
 static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
     CGFloat cw = size.width / kEmojiCols, ch = size.height / kEmojiRows;
     UIGraphicsBeginImageContextWithOptions(size, NO, scale);
+    CGContextSetInterpolationQuality(UIGraphicsGetCurrentContext(), kCGInterpolationHigh);   // Frösche: 63 px -> 30 pt
     for (NSUInteger i = 0; i < keys.count; i++) {
         UIImage *img = [MeshEmoji imageForKey:keys[i]];
         if (!img) continue;
@@ -54,6 +55,18 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
     UIImage *page = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     return page;
+}
+
+// Symbol einer Gruppe in seiner Größe, sauber verkleinert (UIImageView skaliert nur linear).
+static UIImage *tabIcon(NSString *key, CGFloat size) {
+    UIImage *img = [MeshEmoji imageForKey:key];
+    if (!img) return nil;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextSetInterpolationQuality(UIGraphicsGetCurrentContext(), kCGInterpolationHigh);
+    [img drawInRect:CGRectMake(0, 0, size, size)];
+    UIImage *out = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return out;
 }
 
 // Emoji-Fläche: waagerecht blätterndes Raster, unten Gruppen, ABC und ⌫. Gezeichnet werden nur die
@@ -124,7 +137,7 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
         [abc addTarget:self action:@selector(tapLetters) forControlEvents:UIControlEventTouchUpInside];
         [bar addSubview:abc];
 
-        NSArray *icons = @[@"1f600", @"1f43b", @"1f354", @"26bd", @"1f697", @"1f4a1", @"2764", @"1f3f3"];
+        NSArray *icons = @[@"1f600", @"1f43b", @"1f354", @"26bd", @"1f697", @"1f4a1", @"2764", @"1f3f3", @"frosch_grinsen"];
         _tabs = [NSMutableArray array];
         for (int t = 0; t <= MeshEmojiGroupCount; t++) {
             UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -132,7 +145,8 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
             b.tag = t;
             b.layer.cornerRadius = 6;
             b.adjustsImageWhenHighlighted = NO;
-            UIImage *img = t ? [MeshEmoji imageForKey:icons[t - 1]] : [MeshGlyphs icon:@"timer" color:[MeshTheme ink] size:20];
+            UIImage *img = t ? tabIcon(icons[t - 1], 20) : [MeshGlyphs icon:@"timer" color:[MeshTheme ink] size:20];
+            if (t == MeshEmojiFrog + 1) b.accessibilityLabel = L(@"Frog");
             UIImageView *iv = [[UIImageView alloc] initWithImage:img];
             iv.frame = CGRectMake((tabW - 20) / 2, (kEmojiBar - 8 - 20) / 2, 20, 20);
             iv.userInteractionEnabled = NO;

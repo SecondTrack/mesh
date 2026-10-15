@@ -1,9 +1,9 @@
 // Mittelknoten mit pulsierenden Ringen, ein Knoten je Relay.
 // Ein Relay-Knoten leuchtet auf, sobald dieses Relay wirklich verbunden ist; der Text sagt
-// nur "über Tor", wenn Tor tatsächlich aktiv ist. Weiter, sobald ein Relay steht
-// (kurz verzögert, damit man es sieht), per Tippen, oder wenn kTimeout lang nichts vorangeht
-// (Tor-Fortschritt und Relays zählen als Fortschritt; beim allerersten Start lädt Tor das Verzeichnis
-// des Netzes, am iPod 3–4 Minuten mit teils halbminütigen Pausen zwischen zwei Schritten).
+// nur "über Tor", wenn Tor tatsächlich aktiv ist. Weiter (MeshConnectPolicy), sobald ein Relay steht
+// (kurz verzögert, damit man es sieht), per Tippen, ohne WLAN nach kurzem Hinweis, sonst spätestens
+// nach kConnectMaxWait: Tor lädt am iPod gut eine Minute (beim allerersten Start Minuten), das läuft
+// im Hintergrund weiter, die Chatliste ist so lange offline nutzbar.
 #import "ConnectViewController.h"
 #import "MeshScreen.h"
 #import <QuartzCore/QuartzCore.h>
@@ -12,8 +12,8 @@
 #import "MeshSession.h"
 #import "MeshL10n.h"
 #import "MeshCompat.h"
+#import "MeshConnectPolicy.h"
 
-static const NSTimeInterval kTimeout = 45, kShowConnected = 0.8, kShowFailed = 2.5;
 static const CGFloat kOrbit = 92, kNode = 14;
 static const CGFloat kCore = 44, kCoreGap = 6;   // Schild in der Mitte; Linien enden kCoreGap davor
 
@@ -27,7 +27,7 @@ static const CGFloat kCore = 44, kCoreGap = 6;   // Schild in der Mitte; Linien 
     float _shown;              // angezeigter Fortschritt 0…100
     BOOL _finished;
     BOOL _firstStart;          // beim Öffnen noch kein Tor-Verzeichnis da (einmal prüfen, nicht bei jedem Tick)
-    int _progress;             // zuletzt gesehener Fortschritt (Tor-Prozent, Relays); -1 = noch keiner
+    NSDate *_appeared;         // seit wann sichtbar (für MeshConnectPolicy)
 }
 
 - (void)loadView {
@@ -134,7 +134,7 @@ static CAShapeLayer *circleLayer(CGPoint c, CGFloat r, UIColor *fill, UIColor *s
     [super viewDidAppear:animated];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(update)
                                                  name:MeshConnectionChangedNotification object:nil];
-    _progress = -1;
+    _appeared = [NSDate date];
     [self update];
     _tick = [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(tickPercent) userInfo:nil repeats:YES];
 }
@@ -153,28 +153,26 @@ static CAShapeLayer *circleLayer(CGPoint c, CGFloat r, UIColor *fill, UIColor *s
     }
     [self showStatus];
     _count.text = LF(@"%d of %d relays", (int)up, (int)total);
-    if (self.inspect) return;   // aus der Leiste: bleibt offen, bis man tippt
-    // Weiter: verbunden (kurz zeigen), Tor gescheitert (Meldung lesen lassen) oder kTimeout ohne Fortschritt.
-    int progress = (int)up * 1000 + (s.torReady ? 100 : s.torBootstrapPercent);
-    NSTimeInterval delay = up ? kShowConnected : s.torFailed ? kShowFailed : kTimeout;
-    if (up || s.torFailed || progress != _progress) {
-        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(finish) object:nil];
-        [self performSelector:@selector(finish) withObject:nil afterDelay:delay];
-    }
-    _progress = progress;
+    if (self.inspect || !_appeared) return;   // aus der Leiste: bleibt offen, bis man tippt
+    NSTimeInterval delay = [MeshConnectPolicy leaveInAfter:-[_appeared timeIntervalSinceNow] reachable:s.networkReachable
+                                                 connected:up > 0 torFailed:s.torFailed];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(finish) object:nil];
+    [self performSelector:@selector(finish) withObject:nil afterDelay:delay];
 }
 
 // Statuszeile; mit Tor die weich mitlaufenden Prozente und die Zwiebel dahinter.
 - (void)showStatus {
     MeshSession *s = [MeshSession shared];
     BOOL up = s.connectedRelayCount > 0;
+    BOOL offline = !up && !s.networkReachable;
     if (up) _status.text = s.usesTor ? L(@"Connected via Tor") : L(@"Connected to the network");
+    else if (offline) _status.text = L(@"No Wi-Fi connection");
     else if (!s.usesTor) _status.text = L(@"Connecting to the network …");
     else if (s.torFailed) _status.text = L(@"Tor is not running — Mesh stays offline");
     else if (s.torReady) _status.text = L(@"Connecting via Tor …");
     else _status.text = LF(@"Starting Tor … %d%%", (int)_shown);
-    _first.hidden = !(s.usesTor && !up && !s.torReady && !s.torFailed);
-    [self placeOnion:s.usesTor];
+    _first.hidden = !(s.usesTor && !up && !offline && !s.torReady && !s.torFailed);
+    [self placeOnion:s.usesTor && !offline];
 }
 
 // Zwiebel hinter dem Text, beides mittig. Die Breite richtet sich nach "… 100 %", damit der Text

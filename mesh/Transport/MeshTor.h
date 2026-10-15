@@ -23,5 +23,6 @@ typedef enum { MeshTorOff = 0, MeshTorStarting, MeshTorReady, MeshTorFailed } Me
 
 - (BOOL)hasDirectoryCache;   // Netz-Verzeichnis schon da? Ohne (erster Start) lädt Tor es erst herunter – das dauert am iPod Minuten
 - (void)forgetState;   // Tor beenden und seinen Zustand (Guards, letzte Nutzung) löschen; startet danach neu
+- (void)wakeUp;  // Netz wieder da: Tor sofort weiterarbeiten lassen (SIGNAL ACTIVE) statt auf seinen Backoff zu warten
 - (void)start;   // ohne Wirkung, wenn deaktiviert; sonst den Dienst beobachten (eigener Thread)
 @end

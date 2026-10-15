@@ -5,6 +5,7 @@
 extern NSString *const MeshMessagesChangedNotification;     // Chatliste/Chat neu laden
 extern NSString *const MeshConnectionChangedNotification;   // ein Relay hat (ent)verbunden
 extern NSString *const MeshTransportChangedNotification;    // Tor-Zustand geändert (nur für den Transport)
+extern NSString *const MeshReachabilityChangedNotification; // Netz (WLAN) kam oder ging (MeshReachability)
 extern NSString *const MeshProfilesChangedNotification;     // Profil/Avatar eines Kontakts oder des Nutzers geändert
 extern NSString *const MeshProfilePubkey;                   // userInfo dazu: wessen (Hex); fehlt = alle
 extern NSString *const MeshWillLockNotification;

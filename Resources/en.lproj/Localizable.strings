@@ -435,6 +435,9 @@
 "Route" = "Route";
 "Emergency call" = "Emergency";
 
+/* Eigene Tastatur: Emoji-Gruppe der eigenen Emojis (0.1.36) */
+"Frog" = "Frog";
+
 /* Gruppen und Team-Chat (0.1.28) */
 "%@ joined" = "%@ joined";
 "%@ left the group" = "%@ left the group";
@@ -500,7 +503,7 @@
 "The others are informed" = "The others are informed";
 "Too long (at most 4000 characters)." = "Too long (at most 4000 characters).";
 "Unmute" = "Unmute";
-"Waiting for the admin to add you…" = "Waiting for the admin to add you…";
+"Joining… completes as soon as the admin's device is online." = "Joining… completes as soon as the admin's device is online.";
 "You are no longer in the group" = "You are no longer in the group";
 "You can show it again under Me." = "You can show it again under Me.";
 "You left the group" = "You left the group";
@@ -565,3 +568,8 @@
 "Unknown" = "Unknown";
 "You are now admin" = "You are now admin";
 "You proposed %@" = "You proposed %@";
+
+/* Ohne WLAN (0.1.36): Startbildschirm, Chatliste, Verbindungs-Chip */
+"No Wi-Fi connection" = "No Wi-Fi connection";
+"Offline – no Wi-Fi connection" = "Offline – no Wi-Fi connection";
+"Offline" = "Offline";
