@@ -1,4 +1,5 @@
 #import "MeshChatCell.h"
+#import "MeshEmojiLabel.h"
 #import "MeshAvatarView.h"
 #import "MeshTheme.h"
 
@@ -10,9 +11,9 @@
         UIView *hl = [[UIView alloc] init]; hl.backgroundColor = [MeshTheme surface]; self.selectedBackgroundView = hl;
         _avatar = [[MeshAvatarView alloc] initWithFrame:CGRectZero source:MeshAvatarContact];
         [self.contentView addSubview:_avatar];
-        _nameLabel = [[UILabel alloc] init]; _nameLabel.font = [MeshTheme nameFont]; _nameLabel.textColor = [MeshTheme ink];
+        _nameLabel = [[MeshEmojiLabel alloc] init]; _nameLabel.font = [MeshTheme nameFont]; _nameLabel.textColor = [MeshTheme ink];
         _nameLabel.backgroundColor = [UIColor clearColor]; [self.contentView addSubview:_nameLabel];
-        _previewLabel = [[UILabel alloc] init]; _previewLabel.font = [MeshTheme previewFont]; _previewLabel.textColor = [MeshTheme muted];
+        _previewLabel = [[MeshEmojiLabel alloc] init]; _previewLabel.font = [MeshTheme previewFont]; _previewLabel.textColor = [MeshTheme muted];
         _previewLabel.backgroundColor = [UIColor clearColor]; [self.contentView addSubview:_previewLabel];
         _timeLabel = [[UILabel alloc] init]; _timeLabel.font = [MeshTheme timeFont]; _timeLabel.textColor = [MeshTheme faint];
         _timeLabel.backgroundColor = [UIColor clearColor]; _timeLabel.textAlignment = NSTextAlignmentRight;

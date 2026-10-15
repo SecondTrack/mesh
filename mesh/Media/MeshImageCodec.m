@@ -103,4 +103,22 @@ static NSCache *PictureCache(void) {
     return scaledJPEG(image, shortest > 0 ? kAvatarSide / shortest : 1, kAvatarQuality);
 }
 
+// Gruppenbild: die Mitte quadratisch ausschneiden, auf 256 × 256 skalieren, Qualität wie beim Profilbild;
+// wird es (selten) größer als 64 KB, mit geringerer Qualität noch einmal.
++ (NSData *)jpegForGroupPicture:(UIImage *)image {
+    CGFloat w = image.size.width, h = image.size.height, side = MIN(w, h);
+    if (!image || side <= 0) return nil;
+    CGFloat scale = kAvatarSide / side;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(kAvatarSide, kAvatarSide), YES, 1);
+    CGContextSetInterpolationQuality(UIGraphicsGetCurrentContext(), kCGInterpolationHigh);
+    [image drawInRect:CGRectMake((kAvatarSide - w * scale) / 2, (kAvatarSide - h * scale) / 2, w * scale, h * scale)];
+    UIImage *square = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    for (CGFloat q = kAvatarQuality; q > 0.15f; q -= 0.15f) {
+        NSData *jpeg = UIImageJPEGRepresentation(square, q);
+        if (jpeg.length && jpeg.length <= 64 * 1024) return jpeg;
+    }
+    return nil;
+}
+
 @end

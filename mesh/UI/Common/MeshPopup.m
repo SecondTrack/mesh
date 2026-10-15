@@ -3,6 +3,7 @@
 #import "MeshL10n.h"
 #import "MeshEmoji.h"
 #import "MeshKeyboard.h"
+#import "MeshEmojiField.h"
 #import "MeshNotifications.h"
 
 static NSMutableArray *gAlive;   // hält die aktiven Popups am Leben
@@ -10,7 +11,7 @@ static NSUInteger gLocks;        // zählt Sperrungen: Handler aus der Zeit davo
 
 @implementation MeshPopup {
     UIView *_overlay;
-    UITextField *_field;
+    UIView *_field;   // UITextField (geheim, Ziffern) oder MeshEmojiField (freier Text)
     void (^_indexHandler)(NSInteger);
     void (^_inputHandler)(NSString *, BOOL);
 }
@@ -45,7 +46,7 @@ static NSUInteger gLocks;        // zählt Sperrungen: Handler aus der Zeit davo
 - (void)dismissInput:(BOOL)ok {
     if (!_overlay.userInteractionEnabled) return;
     _overlay.userInteractionEnabled = NO;
-    NSString *txt = _field.text ?: @"";
+    NSString *txt = [(id)_field text] ?: @"";
     void (^ih)(NSString *, BOOL) = _inputHandler;
     NSUInteger locks = gLocks;
     [_field resignFirstResponder];
@@ -252,6 +253,15 @@ static const CGFloat kEmojiRowHeight = 50;
 
 + (void)input:(NSString *)title message:(NSString *)message placeholder:(NSString *)placeholder
        secure:(BOOL)secure numeric:(BOOL)numeric handler:(void(^)(NSString *, BOOL))handler {
+    [self input:title message:message placeholder:placeholder text:nil secure:secure numeric:numeric handler:handler];
+}
+
++ (void)input:(NSString *)title text:(NSString *)text placeholder:(NSString *)placeholder handler:(void(^)(NSString *, BOOL))handler {
+    [self input:title message:nil placeholder:placeholder text:text secure:NO numeric:NO handler:handler];
+}
+
++ (void)input:(NSString *)title message:(NSString *)message placeholder:(NSString *)placeholder text:(NSString *)text
+       secure:(BOOL)secure numeric:(BOOL)numeric handler:(void(^)(NSString *, BOOL))handler {
     MeshPopup *p = [[MeshPopup alloc] init];
     [MeshPopup keep:p];
     p->_inputHandler = [handler copy];
@@ -270,30 +280,45 @@ static const CGFloat kEmojiRowHeight = 50;
         [card addSubview:ml];
         y += ms.height + 12;
     }
-    UITextField *tf = [[UITextField alloc] initWithFrame:CGRectMake(kPad, y, inner, kFieldHeight)];
-    tf.backgroundColor = [MeshTheme field];
-    tf.textColor = [MeshTheme ink];
-    tf.font = [MeshTheme bodyFont];
-    tf.layer.cornerRadius = [MeshTheme fieldRadius];
-    tf.textAlignment = NSTextAlignmentCenter;
-    tf.secureTextEntry = secure;
-    if (secure) {   // Passphrasen: nichts verbessern, nichts großschreiben
-        tf.autocorrectionType = UITextAutocorrectionTypeNo;
-        tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    CGRect ff = CGRectMake(kPad, y, inner, kFieldHeight);
+    UIView *field;
+    if (secure || numeric) {   // Geheimnisse und Ziffern brauchen keine Emojis: UITextField
+        UITextField *tf = [[UITextField alloc] initWithFrame:ff];
+        tf.textColor = [MeshTheme ink];
+        tf.font = [MeshTheme bodyFont];
+        tf.textAlignment = NSTextAlignmentCenter;
+        tf.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;   // sonst sitzt der Text auf iOS 6 zu hoch
+        tf.secureTextEntry = secure;
+        if (secure) {   // Passphrasen: nichts verbessern, nichts großschreiben
+            tf.autocorrectionType = UITextAutocorrectionTypeNo;
+            tf.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        }
+        tf.keyboardType = numeric ? UIKeyboardTypeNumberPad : UIKeyboardTypeDefault;
+        tf.keyboardAppearance = UIKeyboardAppearanceAlert;
+        tf.placeholder = placeholder;
+        field = tf;
+    } else {   // freier Text (Gruppenname …): Emojis wie in den Blasen
+        MeshEmojiField *ef = [[MeshEmojiField alloc] initWithFrame:ff];
+        ef.textColor = [MeshTheme ink];
+        ef.font = [MeshTheme bodyFont];
+        ef.textAlignment = NSTextAlignmentCenter;
+        ef.leftPadding = 6;   // gleich dem rechten Rand: Mitte wie beim UITextField
+        ef.placeholder = placeholder;
+        ef.text = text;   // Einfügemarke am Ende
+        field = ef;
     }
-    tf.keyboardType = numeric ? UIKeyboardTypeNumberPad : UIKeyboardTypeDefault;
-    tf.keyboardAppearance = UIKeyboardAppearanceAlert;
-    tf.placeholder = placeholder;
-    [MeshKeyboard attachTo:tf];
-    p->_field = tf;
-    [card addSubview:tf];
+    field.backgroundColor = [MeshTheme field];
+    field.layer.cornerRadius = [MeshTheme fieldRadius];
+    [MeshKeyboard attachTo:(UIResponder<UIKeyInput> *)field];
+    p->_field = field;
+    [card addSubview:field];
     y += kFieldHeight + 16;
 
     y = [p addButtons:card y:y cancel:@selector(inputCancel) ok:@selector(inputOk) title:L(@"OK") style:MeshPopupButtonAccent];
     card.frame = CGRectMake((W - cw) / 2, kInputTop, cw, y + 18);   // oben, damit die Tastatur nicht verdeckt
     [p->_overlay addSubview:card];
     [p animateIn:card];
-    [tf becomeFirstResponder];
+    [field becomeFirstResponder];
 }
 
 - (void)inputCancel { [self dismissInput:NO]; }

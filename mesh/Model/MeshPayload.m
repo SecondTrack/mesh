@@ -5,8 +5,10 @@ static NSString *const kImage   = @"mesh:img";
 static NSString *const kVoice   = @"mesh:voc:";
 static NSString *const kFile    = @"\1mesh:file:";
 static NSString *const kContact = @"mesh:contact:";
+static NSString *const kGroupLink = @"\1mesh:glink:";
 static NSString *const kNotice  = @"ttl:";
 static NSString *const kKeyNotice = @"key:changed";
+static NSString *const kGroupNotice = @"grp:";
 static NSString *const kOldImage = @"mesh:img:", *const kOldVoice = @"mesh:voice:";   // ältere iPod-Versionen
 static const int kMaxVoiceSeconds = 3600;
 
@@ -21,6 +23,7 @@ static int clampSeconds(NSString *s) { return MAX(0, MIN(kMaxVoiceSeconds, s.int
     if ([content hasPrefix:kVoice] || [content hasPrefix:kOldVoice]) return MeshPayloadVoice;
     if ([content hasPrefix:kFile]) return MeshPayloadFile;
     if ([content hasPrefix:kContact]) return MeshPayloadContact;
+    if ([content hasPrefix:kGroupLink]) return MeshPayloadGroupLink;
     return MeshPayloadText;
 }
 
@@ -30,6 +33,17 @@ static int clampSeconds(NSString *s) { return MAX(0, MIN(kMaxVoiceSeconds, s.int
         MeshPayload *p = [[self alloc] init];
         p->_kind = MeshPayloadNotice;
         p->_keyChanged = YES;
+        return p;
+    }
+    if ([content hasPrefix:kGroupNotice]) {
+        NSArray *parts = [[content substringFromIndex:kGroupNotice.length] componentsSeparatedByString:@":"];
+        int event = [parts[0] intValue];
+        if (event <= MeshGroupNoticeNone || event > MeshGroupNoticeLast) return nil;
+        NSData *name = parts.count > 1 ? [MeshBase64 decode:parts[1]] : nil;
+        MeshPayload *p = [[self alloc] init];
+        p->_kind = MeshPayloadNotice;
+        p->_groupNotice = event;
+        p->_text = name ? [[NSString alloc] initWithData:name encoding:NSUTF8StringEncoding] ?: @"" : @"";
         return p;
     }
     if (![content hasPrefix:kNotice]) return nil;
@@ -76,6 +90,15 @@ static int clampSeconds(NSString *s) { return MAX(0, MIN(kMaxVoiceSeconds, s.int
             p->_code = nl.location == NSNotFound ? rest : [rest substringFromIndex:nl.location + 1];
             break;
         }
+        case MeshPayloadGroupLink: {   // "<B64 Name>\n<Link>"; Name nicht lesbar = leer
+            NSString *rest = [content substringFromIndex:kGroupLink.length];
+            NSRange nl = [rest rangeOfString:@"\n"];
+            NSString *b64 = nl.location == NSNotFound ? nil : [rest substringToIndex:nl.location];
+            NSData *name = b64.length ? [MeshBase64 decode:b64] : nil;
+            p->_text = !b64 ? nil : !b64.length ? @"" : name ? [[NSString alloc] initWithData:name encoding:NSUTF8StringEncoding] : nil;
+            p->_code = nl.location == NSNotFound ? @"" : [rest substringFromIndex:nl.location + 1];
+            break;
+        }
         case MeshPayloadText:
         case MeshPayloadNotice:
             p->_kind = MeshPayloadText;
@@ -92,7 +115,8 @@ static int clampSeconds(NSString *s) { return MAX(0, MIN(kMaxVoiceSeconds, s.int
         case MeshPayloadFile:   return kFile;
         case MeshPayloadText:
         case MeshPayloadNotice:
-        case MeshPayloadContact: return nil;   // klein genug, um ganz geladen zu werden
+        case MeshPayloadContact:
+        case MeshPayloadGroupLink: return nil;   // klein genug, um ganz geladen zu werden
     }
     return nil;
 }
@@ -119,11 +143,19 @@ static NSString *headerField(NSString *s) {
     return [NSString stringWithFormat:@"%@%@\n%@", kContact, headerField(name), code];
 }
 
++ (NSString *)contentWithGroupLinkName:(NSString *)name link:(NSString *)link {
+    return [NSString stringWithFormat:@"%@%@\n%@", kGroupLink, [MeshBase64 encode:[(name ?: @"") dataUsingEncoding:NSUTF8StringEncoding]], link ?: @""];
+}
+
 + (NSString *)noticeTimer:(int)seconds byMe:(BOOL)byMe {
     return [NSString stringWithFormat:@"%@%d:%d", kNotice, seconds, byMe ? 1 : 0];
 }
 
 + (NSString *)noticeKeyChanged { return kKeyNotice; }
+
++ (NSString *)noticeGroup:(MeshGroupNotice)event name:(NSString *)name {
+    return [NSString stringWithFormat:@"%@%d:%@", kGroupNotice, (int)event, [MeshBase64 encode:[(name ?: @"") dataUsingEncoding:NSUTF8StringEncoding]]];
+}
 
 - (NSData *)data {
     if (!_body.length) return nil;

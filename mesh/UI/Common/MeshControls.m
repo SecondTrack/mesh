@@ -1,4 +1,5 @@
 #import "MeshControls.h"
+#import "MeshEmojiLabel.h"
 #import "MeshTheme.h"
 #import "MeshKeyboard.h"
 
@@ -19,6 +20,20 @@
     f.leftViewMode = UITextFieldViewModeAlways;
     f.delegate = delegate;
     [MeshKeyboard attachTo:f];   // eigene Tastatur statt iOS (lernt nichts mit)
+    return f;
+}
+
++ (MeshEmojiField *)textFieldWithFrame:(CGRect)frame placeholder:(NSString *)placeholder delegate:(id<MeshEmojiFieldDelegate>)delegate {
+    MeshEmojiField *f = [[MeshEmojiField alloc] initWithFrame:frame];
+    f.backgroundColor = [MeshTheme field];
+    f.textColor = [MeshTheme ink];
+    f.font = [MeshTheme bodyFont];
+    f.layer.cornerRadius = [MeshTheme fieldRadius];
+    f.placeholder = placeholder;
+    f.autocapitalizationType = UITextAutocapitalizationTypeWords;
+    f.leftPadding = 12;   // wie die leftView des UITextField
+    f.delegate = delegate;
+    [MeshKeyboard attachTo:f];
     return f;
 }
 
@@ -58,7 +73,15 @@
 }
 
 + (UILabel *)labelWithFrame:(CGRect)frame font:(UIFont *)font color:(UIColor *)color {
-    UILabel *l = [[UILabel alloc] initWithFrame:frame];
+    return [self label:[UILabel class] frame:frame font:font color:color];
+}
+
++ (UILabel *)userLabelWithFrame:(CGRect)frame font:(UIFont *)font color:(UIColor *)color {
+    return [self label:[MeshEmojiLabel class] frame:frame font:font color:color];
+}
+
++ (UILabel *)label:(Class)cls frame:(CGRect)frame font:(UIFont *)font color:(UIColor *)color {
+    UILabel *l = [[cls alloc] initWithFrame:frame];
     l.font = font;
     l.textColor = color;
     l.backgroundColor = [UIColor clearColor];

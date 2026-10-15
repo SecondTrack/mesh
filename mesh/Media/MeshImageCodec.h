@@ -20,4 +20,5 @@
 
 + (NSData *)jpegForChat:(UIImage *)image;     // längste Seite höchstens 480 px
 + (NSData *)jpegForAvatar:(UIImage *)image;   // kürzeste Seite 256 px
++ (NSData *)jpegForGroupPicture:(UIImage *)image;   // Mitte quadratisch, 256 × 256 px, höchstens 64 KB (B7)
 @end

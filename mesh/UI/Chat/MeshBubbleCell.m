@@ -1,4 +1,5 @@
 #import "MeshBubbleCell.h"
+#import "MeshEmojiLabel.h"
 #import "MeshTheme.h"
 #import "MeshGlyphs.h"
 #import "MeshL10n.h"
@@ -16,6 +17,7 @@ static const CGFloat kVideoWidth = 220, kVideoHeight = 160, kVideoPlay = 54;   /
 static const CGFloat kCardWidth = 252, kCardHead = 78, kCardAction = 46, kCardAvatar = 48, kCardRing = 2.5f;   // Kontakt-Karte wie Android
 static const CGFloat kQuoteHeight = 38, kQuoteGap = 2, kQuoteBar = 3;   // Zitat über der Blase
 static const CGFloat kReactionHeight = 24, kReactionOverlap = 10;        // ragt so weit unter die Blase
+static const CGFloat kHeadHeight = 17;                                   // Absender / "an alle" über der Blase
 
 // Anzeigegröße eines Bildes, in eine max. Breite/Höhe eingepasst.
 static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
@@ -93,7 +95,9 @@ static int playedBars(CGFloat progress) {
     MeshAvatarView *_cAvatar;
     UILabel *_cName, *_cSub, *_cAction;
     UIImageView *_cSubIcon, *_cActionIcon;
-    CGFloat _top;               // Platz über der Blase (Zitat)
+    UILabel *_head;             // Absender bzw. "an alle", erst bei Bedarf angelegt
+    CGFloat _headH, _quoteH;
+    CGFloat _top;               // Platz über der Blase (Kopfzeile + Zitat)
 }
 - (instancetype)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)rid {
     if ((self = [super initWithStyle:style reuseIdentifier:rid])) {
@@ -191,7 +195,7 @@ static UIImage *roundedOnBubble(UIImage *img, CGSize box, BOOL fromMe, CGFloat s
     _cRing.backgroundColor = [UIColor clearColor];
     _cAvatar = [[MeshAvatarView alloc] initWithFrame:CGRectMake(kCardRing + 2, kCardRing + 2, kCardAvatar, kCardAvatar) source:MeshAvatarContact];
     [_cRing addSubview:_cAvatar];
-    _cName = [[UILabel alloc] init];
+    _cName = [[MeshEmojiLabel alloc] init];
     _cName.font = [MeshTheme nameFont];
     _cName.textColor = [MeshTheme ink];
     _cSubIcon = [[UIImageView alloc] initWithImage:[MeshGlyphs icon:@"forward" color:[MeshTheme accent] size:12]];
@@ -226,8 +230,14 @@ static UIImage *roundedOnBubble(UIImage *img, CGSize box, BOOL fromMe, CGFloat s
 // Aktion (Hinzufügen / Chat öffnen), die ganze Zeile ist antippbar.
 - (void)setContactCard:(NSString *)name pubkey:(NSString *)pubkey action:(NSString *)action glyph:(NSString *)glyph
                 fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width {
+    [self setCard:name subtitle:L(@"Shared contact") pubkey:pubkey action:action glyph:glyph fromMe:fromMe status:status width:width];
+}
+
+- (void)setCard:(NSString *)name subtitle:(NSString *)subtitle pubkey:(NSString *)pubkey action:(NSString *)action glyph:(NSString *)glyph
+         fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width {
     _photo.hidden = YES; _photo.image = nil; _bubble.text = nil; [self hideVoice]; [self hideFile];
     [self addCardViews];
+    _cSub.text = subtitle;
     CGFloat h = kCardHead + (action ? kCardAction + 1 : 0);
     CGFloat x = fromMe ? (width - kCardWidth - 12) : 12;
     _bubble.frame = CGRectMake(x, kRowVPad + _top, kCardWidth, h);
@@ -322,12 +332,12 @@ static UIImage *quoteBarImage(void) {
     UIImageView *bar = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, kQuoteBar, kQuoteHeight)];
     bar.image = quoteBarImage();
     [_quote addSubview:bar];
-    _quoteAuthor = [[UILabel alloc] init];
+    _quoteAuthor = [[MeshEmojiLabel alloc] init];
     _quoteAuthor.font = [MeshTheme timeFont];
     _quoteAuthor.textColor = [MeshTheme accent];
     _quoteAuthor.backgroundColor = [UIColor clearColor];
     [_quote addSubview:_quoteAuthor];
-    _quoteText = [[UILabel alloc] init];
+    _quoteText = [[MeshEmojiLabel alloc] init];
     _quoteText.font = [MeshTheme timeFont];
     _quoteText.textColor = [MeshTheme muted];
     _quoteText.backgroundColor = [UIColor clearColor];
@@ -356,7 +366,22 @@ static UIImage *quoteBarImage(void) {
     _quote.hidden = author == nil;
     _quoteAuthor.text = author;
     _quoteText.text = text;
-    _top = author ? kQuoteHeight + kQuoteGap : 0;
+    _quoteH = author ? kQuoteHeight + kQuoteGap : 0;
+    _top = _headH + _quoteH;
+}
+
+- (void)setHeader:(NSString *)text color:(UIColor *)color {
+    if (text.length && !_head) {
+        _head = [[MeshEmojiLabel alloc] init];
+        _head.font = [MeshTheme timeFont];
+        _head.backgroundColor = [MeshTheme bg];
+        [self.contentView addSubview:_head];
+    }
+    _head.hidden = !text.length;
+    _head.text = text;
+    _head.textColor = color ?: [MeshTheme muted];
+    _headH = text.length ? kHeadHeight : 0;
+    _top = _headH + _quoteH;
 }
 
 - (void)setReactions:(NSString *)reactions {
@@ -366,17 +391,26 @@ static UIImage *quoteBarImage(void) {
 }
 
 + (CGFloat)extraHeightWithQuote:(BOOL)quote reactions:(BOOL)reactions {
-    return (quote ? kQuoteHeight + kQuoteGap : 0) + (reactions ? kReactionHeight - kReactionOverlap : 0);
+    return [self extraHeightWithQuote:quote reactions:reactions header:NO];
+}
+
++ (CGFloat)extraHeightWithQuote:(BOOL)quote reactions:(BOOL)reactions header:(BOOL)header {
+    return (header ? kHeadHeight : 0) + (quote ? kQuoteHeight + kQuoteGap : 0) + (reactions ? kReactionHeight - kReactionOverlap : 0);
 }
 
 // Zitat über der Blase (gleiche Seite, mindestens so breit wie der Text darin), Reaktionen
 // halb unter der Blase auf der Seite gegenüber dem Haken.
 - (void)layoutDecorationsFromMe:(BOOL)fromMe width:(CGFloat)width {
     CGRect b = _bubble.frame;
+    if (_head && !_head.hidden) {
+        CGFloat hw = width * kBubbleMaxFrac;
+        _head.textAlignment = fromMe ? NSTextAlignmentRight : NSTextAlignmentLeft;
+        _head.frame = CGRectMake(fromMe ? CGRectGetMaxX(b) - hw - 4 : b.origin.x + 4, kRowVPad, hw, kHeadHeight - 2);
+    }
     if (_quote && !_quote.hidden) {
         CGFloat qw = MIN(width * kBubbleMaxFrac, MAX(b.size.width, 140));
         CGFloat qx = fromMe ? CGRectGetMaxX(b) - qw : b.origin.x;
-        _quote.frame = CGRectMake(qx, kRowVPad, qw, kQuoteHeight);
+        _quote.frame = CGRectMake(qx, kRowVPad + _headH, qw, kQuoteHeight);
         _quoteAuthor.frame = CGRectMake(kQuoteBar + 8, 3, qw - kQuoteBar - 14, 16);
         _quoteText.frame = CGRectMake(kQuoteBar + 8, 19, qw - kQuoteBar - 14, 16);
     }

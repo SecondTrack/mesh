@@ -56,7 +56,8 @@
 - (BOOL)hasEventId:(NSString *)eventId;
 - (long long)newestReceivedTime;                       // 0 = noch nichts empfangen
 - (void)setImageWidth:(int)width height:(int)height ofMessage:(long long)rowId;   // aus dem Dateikopf, für Zeilenhöhen
-- (BOOL)markDelivered:(NSString *)eventId;   // Relay-OK → status=1, startet "Ab Gesehen"-Uhren (YES = Status geändert)
+- (BOOL)markDelivered:(NSString *)eventId;
+- (BOOL)markMessageDelivered:(NSString *)eventId;    // wie markDelivered, ohne die Warteschlange anzufassen   // Relay-OK → status=1, startet "Ab Gesehen"-Uhren (YES = Status geändert)
 - (NSArray *)messagesForChat:(NSString *)pubkeyHex;   // MeshMessage*, aufsteigend nach ts
 - (NSArray *)messagesForChat:(NSString *)pubkeyHex limit:(NSUInteger)limit;   // nur die neuesten, aufsteigend
 - (NSString *)contentOfMessage:(long long)rowId;          // vollständiger Inhalt (inkl. Medien)

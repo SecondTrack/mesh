@@ -3,6 +3,7 @@
 #import <Foundation/Foundation.h>
 
 @interface MeshWebSocket : NSObject
+@property (nonatomic, copy) NSString *socksCredential;   // eigener Tor-Kreis (siehe MeshTLS), vor connect setzen
 // TLS + HTTP-Upgrade-Handshake. NO bei Fehler.
 - (BOOL)connectHost:(NSString *)host port:(int)port path:(NSString *)path error:(NSString **)err;
 // Ein Text-Frame senden (maskiert, wie vom Client verlangt).

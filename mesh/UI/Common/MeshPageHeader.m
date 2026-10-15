@@ -1,4 +1,5 @@
 #import "MeshPageHeader.h"
+#import "MeshEmojiLabel.h"
 #import "MeshTheme.h"
 #import "MeshGlyphs.h"
 
@@ -20,7 +21,7 @@ static const CGFloat kBarHeight = 46;
         [b setImage:[MeshGlyphs icon:@"back" color:[MeshTheme accent] size:22] forState:UIControlStateNormal];
         [b addTarget:target action:back forControlEvents:UIControlEventTouchUpInside];
         [self addSubview:b];
-        _titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(50, top, width - 100, barH)];
+        _titleLabel = [[MeshEmojiLabel alloc] initWithFrame:CGRectMake(50, top, width - 100, barH)];
         _titleLabel.font = [MeshTheme titleFont];
         _titleLabel.textColor = [MeshTheme ink];
         _titleLabel.backgroundColor = [UIColor clearColor];

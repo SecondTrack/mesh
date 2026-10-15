@@ -4,7 +4,7 @@
 
 @interface MeshGlyphs : NSObject
 // Linien-Symbol nach Name: chat, key, scan, send, back, forward, add, shield, camera, check,
-// doublecheck, search, mic; Tastatur: shift, capslock, backspace, globe, smiley. Farbe und Kantenlänge in Punkten.
+// doublecheck, search, mic, group; Tastatur: shift, capslock, backspace, globe, smiley. Farbe und Kantenlänge in Punkten.
 + (UIImage *)icon:(NSString *)name color:(UIColor *)color size:(CGFloat)size;
 // Mesh-Logo (Mint-Knoten), quadratisch.
 + (UIImage *)logo:(CGFloat)size;

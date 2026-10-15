@@ -5,7 +5,7 @@
 #import "MeshNotifications.h"
 #import "MeshSafetyCode.h"   // MeshSafetyScan
 
-@class MeshMessage, MeshProfile, MeshPayload, MeshIdentityInfo;
+@class MeshMessage, MeshProfile, MeshPayload, MeshIdentityInfo, MeshGroupInfo;
 
 enum { MeshMaxFileBytes = 500 * 1024 };   // Datei als Ganzes in einer Nachricht (Android: 700 000 Base64-Zeichen)
 
@@ -74,6 +74,7 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 - (BOOL)clockPlausible;   // NO: Geräteuhr vor dem Build-Datum, Zertifikatsablauf nur grob prüfbar
 
 - (void)setOpenChat:(NSString *)peerHex;   // sichtbarer Chat (nil = keiner): Neues gilt dort als gelesen
+- (void)userDidInteract;                   // Berührung (App-Fenster): Hintergrundarbeit wie der Medien-Umzug wartet
 
 @end
 
@@ -166,7 +167,47 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 - (BOOL)sendVoiceTo:(NSString *)peerHex audio:(NSData *)audio seconds:(int)seconds replyTo:(NSString *)replyTo;   // AAC/m4a
 - (BOOL)sendFileTo:(NSString *)peerHex data:(NSData *)data name:(NSString *)name mime:(NSString *)mime replyTo:(NSString *)replyTo;
 - (BOOL)sendContact:(NSString *)contactHex to:(NSString *)peerHex;   // Kontaktkarte mit Name und Mesh-Code
+// Gruppen: Bild höchstens 256 KB, Sprache höchstens 512 KB (Base64, B8.3). YES = dafür zu groß (Hinweis zeigen).
+- (BOOL)tooLargeForGroup:(NSString *)chat image:(NSData *)jpeg;
+- (BOOL)tooLargeForGroup:(NSString *)chat voice:(NSData *)audio seconds:(int)seconds;
 - (NSArray *)acceptedContacts;                                       // Hex-Pubkeys, z.B. zum Teilen
+- (NSString *)senderName:(NSString *)pubkey inChat:(NSString *)chat; // Gruppe: Kontaktname, sonst Name aus der Gruppe
+@end
+
+// Gruppen und Team-Chat (MeshSession+Groups.m, docs/TEAM_GROUPS_PROTOCOL.md). Chat-Schlüssel wie in
+// MeshChat.h: "g:<gid>" bzw. "team"; die Chat-Methoden oben nehmen sie wie einen Kontakt.
+@interface MeshSession (Groups)
+- (BOOL)isGroupChat:(NSString *)chat;
+- (BOOL)isTeamChat:(NSString *)chat;
+- (NSString *)createGroupNamed:(NSString *)name members:(NSArray *)pubkeys;   // Chat-Schlüssel, nil bei Fehler
+- (MeshGroupInfo *)groupInfo:(NSString *)chat;                               // nil = keine (bekannte) Gruppe
+- (BOOL)acceptGroupInvite:(NSString *)chat;
+- (void)declineGroupInvite:(NSString *)chat;
+- (BOOL)leaveGroup:(NSString *)chat;                                         // Admin: auflösen
+- (BOOL)deletingDissolvesGroup:(NSString *)chat;                             // Admin einer aktiven Gruppe: "Chat löschen" löst für alle auf (B8.8)
+- (BOOL)inviteContacts:(NSArray *)pubkeys toGroup:(NSString *)chat;          // nur Admin; auch "Erneut einladen" (B8.5)
+- (BOOL)removeMember:(NSString *)pubkey fromGroup:(NSString *)chat;          // nur Admin
+- (BOOL)renameGroup:(NSString *)chat to:(NSString *)name;                    // nur Admin
+- (BOOL)setGroupPicture:(NSData *)jpeg chat:(NSString *)chat;              // nur Admin; nil = entfernen (B7)
+// B9: Admin übergeben (leave: danach austreten), Kontakt vorschlagen, Vorschläge annehmen/ablehnen.
+- (BOOL)transferAdmin:(NSString *)pubkey inGroup:(NSString *)chat leave:(BOOL)leave;
+- (BOOL)proposeContact:(NSString *)pubkey toGroup:(NSString *)chat;
+- (NSArray *)proposableContacts:(NSString *)chat;                            // eigene angenommene Kontakte, nicht in m
+- (BOOL)acceptProposal:(long long)proposalId inGroup:(NSString *)chat;
+- (BOOL)rejectProposal:(long long)proposalId inGroup:(NSString *)chat;
+// B10: offen/geschlossen, Link zurücksetzen, Link als Karte senden (nur 1:1), Beitreten per Link.
+- (BOOL)setGroupOpen:(BOOL)open chat:(NSString *)chat;
+- (BOOL)resetGroupLink:(NSString *)chat;
+- (BOOL)sendGroupLink:(NSString *)chat to:(NSString *)peerHex;
+// Text (gescannt, eingefügt, aus einer Karte) als Beitritts-Link: @{link, chat, admin, adminLabel}; nil = keiner.
+- (NSDictionary *)groupLinkDetails:(NSString *)text;
+- (NSString *)joinGroupByLink:(NSString *)link name:(NSString *)groupName;   // Chat-Schlüssel, nil = abgelehnt
+
+// Team-Chat der angezeigten Identität
+- (BOOL)teamChatAvailable;      // Team-Chat an (echter TEAM_PK, nicht selbst das Team)
+- (BOOL)teamCanSend;            // getrennte Verbindung (Tor) vorhanden
+@property (nonatomic) BOOL teamChatHidden, teamChatMuted;
+- (void)startTeamChatOver;      // persönliche Nachrichten löschen, neuer Einweg-Schlüssel
 @end
 
 @interface MeshSession (Pairing)

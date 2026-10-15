@@ -50,4 +50,11 @@ MESH_FONT(brandFont,   [self font:@"HelveticaNeue-Bold"   size:26.0f fallbackBol
 + (CGFloat)codeRadius  { return 24.0f; }
 + (CGFloat)topInset    { return 2.0f; }
 
++ (UIColor *)senderColor:(NSString *)pubkey {
+    static const unsigned colors[] = { 0x2FE6A8, 0x6FB7FF, 0xFFB86B, 0xD98CFF, 0xFF8FA3, 0x8CE36F, 0xFFE06B, 0x6FE3E0 };
+    unsigned h = 0;
+    for (NSUInteger i = 0; i < MIN((NSUInteger)16, pubkey.length); i++) h = h * 31 + [pubkey characterAtIndex:i];
+    return MESH_RGB(colors[h % 8]);
+}
+
 @end

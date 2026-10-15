@@ -6,6 +6,7 @@
 #import "MeshImageCodec.h"
 #import "MeshProfile.h"
 #import "MeshNotifications.h"
+#import "MeshChat.h"
 
 @implementation MeshAvatarView {
     UIImage *_image;     // aufgelöstes Profilbild; einmal je Pubkey/Bild, nicht bei jedem Zeichnen
@@ -123,7 +124,7 @@ static NSUInteger PixelCost(UIImage *img) {
 // Gespeicherte Form (Base64/data:) des Profilbilds, nil = keins oder (noch) nicht zu zeigen.
 + (NSString *)storedPictureForSource:(MeshAvatarSource)source pubkey:(NSString *)pubkey {
     switch (source) {
-        case MeshAvatarContact:   return [[MeshSession shared] pictureFor:pubkey];
+        case MeshAvatarContact:   return [[MeshSession shared] pictureFor:pubkey];   // auch Gruppen ("g:<gid>")
         case MeshAvatarSelf:      return [[MeshSession shared] profile].picture;
         case MeshAvatarIdenticon:
         case MeshAvatarPreview:   return nil;
@@ -140,7 +141,8 @@ static NSUInteger PixelCost(UIImage *img) {
     UIGraphicsBeginImageContextWithOptions(r.size, YES, 1);
     [[MeshTheme surfaceHi] setFill];
     UIRectFill(r);
-    if (source == MeshAvatarIdenticon) [MeshIdenticon drawSeed:pubkey inRect:r context:UIGraphicsGetCurrentContext()];
+    if ([self drawChatKey:pubkey inRect:r context:UIGraphicsGetCurrentContext()]) {}
+    else if (source == MeshAvatarIdenticon) [MeshIdenticon drawSeed:pubkey inRect:r context:UIGraphicsGetCurrentContext()];
     else [self drawPlaceholderInRect:r context:UIGraphicsGetCurrentContext()];
     img = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
@@ -150,12 +152,16 @@ static NSUInteger PixelCost(UIImage *img) {
 - (void)drawRect:(CGRect)rect {
     CGRect b = self.bounds;
     CGContextRef ctx = UIGraphicsGetCurrentContext();
+    // Team-Chat: immer das Logo. Gruppe: ihr Bild (B7), sonst das Identicon mit Gruppen-Symbol.
+    BOOL group = MeshGroupOfChat(_pubkey) != nil;
+    if (!group && [MeshAvatarView drawChatKey:_pubkey inRect:b context:ctx]) return;
     if (!_resolved && [MeshSession shared].unlocked) {
         _image = _picture.length ? [MeshImageCodec imageFromPicture:_picture]
                                  : [MeshAvatarView pictureForSource:_source pubkey:_pubkey];
         _resolved = YES;
     }
     UIImage *img = _image;
+    if (!img && group) { [MeshAvatarView drawChatKey:_pubkey inRect:b context:ctx]; return; }
     if (!img && _source == MeshAvatarIdenticon) { [MeshIdenticon drawSeed:_pubkey inRect:b context:ctx]; return; }
     if (!img) { [MeshAvatarView drawPlaceholderInRect:b context:ctx]; return; }
 
@@ -170,6 +176,32 @@ static NSUInteger PixelCost(UIImage *img) {
         if (key && circle) [CircleCache setObject:circle forKey:key cost:PixelCost(circle)];
     }
     [circle drawInRect:b];
+}
+
+// Gruppe ohne Bild: Identicon aus der gid mit Gruppen-Symbol darüber; Team-Chat: das Mesh-Logo. NO für Kontakte.
++ (BOOL)drawChatKey:(NSString *)key inRect:(CGRect)b context:(CGContextRef)ctx {
+    NSString *gid = MeshGroupOfChat(key);
+    if (gid) {
+        [MeshIdenticon drawSeed:gid inRect:b context:ctx];
+        CGFloat d = b.size.width * 0.56f;
+        CGRect c = CGRectMake(b.origin.x + (b.size.width - d) / 2, b.origin.y + (b.size.height - d) / 2, d, d);
+        [[[MeshTheme bg] colorWithAlphaComponent:0.72f] setFill];
+        CGContextFillEllipseInRect(ctx, c);
+        [[MeshGlyphs icon:@"group" color:[MeshTheme ink] size:floorf(d * 0.62f)] drawInRect:CGRectInset(c, d * 0.19f, d * 0.19f)];
+        return YES;
+    }
+    if (MeshIsTeamChat(key)) {
+        CGContextSaveGState(ctx);
+        CGContextAddEllipseInRect(ctx, b);
+        CGContextClip(ctx);
+        [[MeshTheme surfaceHi] setFill];
+        CGContextFillRect(ctx, b);
+        CGFloat d = b.size.width * 0.66f;
+        [[MeshGlyphs logo:d] drawInRect:CGRectMake(b.origin.x + (b.size.width - d) / 2, b.origin.y + (b.size.height - d) / 2, d, d)];
+        CGContextRestoreGState(ctx);
+        return YES;
+    }
+    return NO;
 }
 
 // Aspect-fill in den Kreis.

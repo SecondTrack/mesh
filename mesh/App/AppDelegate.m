@@ -19,6 +19,17 @@
 
 static const NSTimeInterval kAlertGrace = 60;   // so lange darf ein Systemdialog offen sein, ohne dass gesperrt wird
 
+// Fenster, das jede Berührung meldet: der einmalige Medien-Umzug (MeshSession) wartet dann, die
+// Oberfläche bleibt flüssig.
+@interface MeshWindow : UIWindow
+@end
+@implementation MeshWindow
+- (void)sendEvent:(UIEvent *)event {
+    if (event.type == UIEventTypeTouches) [[MeshSession shared] userDidInteract];
+    [super sendEvent:event];
+}
+@end
+
 @implementation AppDelegate {
     UIView *_cover;          // deckt den Inhalt ab, solange ein Systemdialog (Akku, Fotozugriff) davor liegt
     NSDate *_coveredSince;   // Wanduhr: der Timer unten steht still, während das Gerät schläft
@@ -38,7 +49,7 @@ static const NSTimeInterval kAlertGrace = 60;   // so lange darf ein Systemdialo
                                                  name:MeshWipedNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(incoming:)
                                                  name:MeshIncomingMessageNotification object:nil];
-    self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.window = [[MeshWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.window.backgroundColor = [MeshTheme bg];
     [self showLock];
     [self.window makeKeyAndVisible];

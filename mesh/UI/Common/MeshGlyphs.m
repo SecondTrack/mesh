@@ -35,6 +35,7 @@ static NSString *pathFor(NSString *name) {
         @"play":       @"M8,5l11,7l-11,7z",
         @"share":      @"M15,5l5,5l-5,5 M20,10h-8a7,7 0 0 0 -7,7v2",
         @"block":      @"M12,3a9,9 0 1 0 0.01,0z M5.6,5.6l12.8,12.8",
+        @"group":      @"M9,5a3.5,3.5 0 1 0 0.01,0z M2.5,20a6.5,6.5 0 0 1 13,0 M16.5,6a3,3 0 1 0 0.01,0z M17,13a5,5 0 0 1 4.5,6",
         // Tastatur
         @"shift":      @"M12,3.5L3.5,12H8v7.5h8V12h4.5z",
         @"capslock":   @"M12,3L3.5,11H8v5.5h8V11h4.5z M8,20.5h8",

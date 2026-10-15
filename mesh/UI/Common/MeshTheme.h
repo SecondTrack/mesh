@@ -23,6 +23,7 @@
 + (UIColor *)faint;       // 5A6B65
 + (UIColor *)bubbleMeInk; // E6FBF2
 + (UIColor *)danger;      // FF6B6B
++ (UIColor *)senderColor:(NSString *)pubkey;   // Absendername im Gruppenchat: feste Farbe je Pubkey
 
 // Schrift: UI = HelveticaNeue, Schlüssel = Mono
 + (UIFont *)titleFont;    // 20 Bold

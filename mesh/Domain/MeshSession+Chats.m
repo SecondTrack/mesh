@@ -13,6 +13,11 @@
 #import "MeshSafetyCode.h"
 #import "MeshHex.h"
 #import "MeshBech32.h"
+#import "MeshTeam.h"
+#import "MeshGroupState.h"
+#import "MeshStore+Group.h"
+#import "MeshTime.h"
+#import "MeshL10n.h"
 
 @implementation MeshSession (Chats)
 
@@ -21,13 +26,24 @@
 - (BOOL)sendContent:(NSString *)content to:(NSString *)peerHex replyTo:(NSString *)replyTo {
     MeshMessenger *messenger = self.active.messenger;
     if (!messenger) return NO;   // z.B. eine Sprachnachricht, deren Kodierung erst nach dem Sperren fertig wird
-    MeshMessage *m = [messenger send:content to:peerHex replyTo:replyTo];
+    NSString *gid = MeshGroupOfChat(peerHex);
+    MeshMessage *m = gid ? [messenger sendGroup:gid content:content replyTo:replyTo]
+                   : MeshIsTeamChat(peerHex) ? [self.active.team send:content]   // nur Text, anonym, ohne Antwort-Bezug
+                   : [messenger send:content to:peerHex replyTo:replyTo];
     if (m) [self messagesChanged];
     return m != nil;
 }
 
 - (BOOL)sendTo:(NSString *)peerHex text:(NSString *)text replyTo:(NSString *)replyTo {
     return text.length && [self sendContent:text to:peerHex replyTo:replyTo];
+}
+
+- (BOOL)tooLargeForGroup:(NSString *)chat image:(NSData *)jpeg {
+    return MeshGroupOfChat(chat) && jpeg.length && ![MeshMessenger fitsGroup:[MeshPayload contentWithImage:jpeg]];
+}
+
+- (BOOL)tooLargeForGroup:(NSString *)chat voice:(NSData *)audio seconds:(int)seconds {
+    return MeshGroupOfChat(chat) && audio.length && ![MeshMessenger fitsGroup:[MeshPayload contentWithVoice:audio seconds:seconds]];
 }
 
 - (BOOL)sendImageTo:(NSString *)peerHex jpeg:(NSData *)jpeg replyTo:(NSString *)replyTo {
@@ -40,6 +56,7 @@
 
 - (BOOL)sendFileTo:(NSString *)peerHex data:(NSData *)data name:(NSString *)name mime:(NSString *)mime replyTo:(NSString *)replyTo {
     if (!data.length || data.length > MeshMaxFileBytes) return NO;
+    if (MeshGroupOfChat(peerHex) || MeshIsTeamChat(peerHex)) return NO;   // Dateien nur im 1:1-Chat
     return [self sendContent:[MeshPayload contentWithFile:data name:name mime:mime] to:peerHex replyTo:replyTo];
 }
 
@@ -53,24 +70,41 @@
 #pragma mark - Reaktionen, Löschen, Selbstlöschen
 
 - (void)react:(NSString *)emoji to:(MeshMessage *)message in:(NSString *)peerHex {
-    if ([self.active.messenger react:emoji to:message in:peerHex]) [self messagesChanged];
+    if (MeshIsTeamChat(peerHex)) return;
+    NSString *gid = MeshGroupOfChat(peerHex);
+    BOOL ok = gid ? [self.active.messenger reactInGroup:gid emoji:emoji to:message] : [self.active.messenger react:emoji to:message in:peerHex];
+    if (ok) [self messagesChanged];
 }
 
 - (BOOL)deleteForEveryone:(MeshMessage *)message in:(NSString *)peerHex {
-    BOOL ok = [self.active.messenger deleteForEveryone:message in:peerHex];
+    if (MeshIsTeamChat(peerHex)) return NO;
+    NSString *gid = MeshGroupOfChat(peerHex);
+    BOOL ok = gid ? [self.active.messenger deleteInGroup:gid message:message] : [self.active.messenger deleteForEveryone:message in:peerHex];
     if (ok) [self messagesChanged];
     return ok;
 }
 
 - (void)clearChat:(NSString *)peerHex forEveryone:(BOOL)everyone {
-    [self.active.messenger clearChat:peerHex forEveryone:everyone];
+    if (MeshGroupOfChat(peerHex) || MeshIsTeamChat(peerHex)) [self.active.store clearChat:peerHex at:MeshNow()];   // nur lokal
+    else [self.active.messenger clearChat:peerHex forEveryone:everyone];
     [self messagesChanged];
 }
 
-- (int)timerFor:(NSString *)peerHex fromSent:(BOOL *)fromSent { return [self.active.messenger timerFor:peerHex fromSent:fromSent]; }
+- (int)timerFor:(NSString *)peerHex fromSent:(BOOL *)fromSent {
+    NSString *gid = MeshGroupOfChat(peerHex);
+    if (gid || MeshIsTeamChat(peerHex)) {   // Gruppe: aus dem Zustand des Admins; Team-Chat: nie
+        MeshGroupState *s = gid ? [self.active.messenger groupState:gid status:NULL inviter:NULL] : nil;
+        if (fromSent) *fromSent = s.timerFromSent;
+        return s.timer;
+    }
+    return [self.active.messenger timerFor:peerHex fromSent:fromSent];
+}
 
 - (void)setTimer:(int)seconds fromSent:(BOOL)fromSent for:(NSString *)peerHex {
-    [self.active.messenger setTimer:seconds fromSent:fromSent for:peerHex];
+    NSString *gid = MeshGroupOfChat(peerHex);
+    if (MeshIsTeamChat(peerHex)) return;
+    if (gid) [self.active.messenger setGroupTimer:seconds fromSent:fromSent group:gid];   // nur der Admin
+    else [self.active.messenger setTimer:seconds fromSent:fromSent for:peerHex];
     [self messagesChanged];
 }
 
@@ -99,6 +133,7 @@
     if (code.bundle && ![store isVerified:hex]) [store setBundle:code.bundle forContact:hex];
     [self.active.messenger sayHelloTo:hex];
     [self.active.messenger sendPictureTo:hex];   // privat: Android-Kontakte sehen unser kind-0-Bild sonst nicht
+    [self.active.messenger contactAccepted:hex];   // B8.5: zurückgehaltene Gruppeneinladungen von ihm
     [self requestProfileOf:hex];
     [self notify:MeshMessagesChangedNotification];
     return hex;
@@ -115,27 +150,44 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
 }
 
 - (NSString *)displayNameFor:(NSString *)peerHex {
+    if (MeshIsTeamChat(peerHex)) return @"Mesh Team";
+    NSString *gid = MeshGroupOfChat(peerHex);
+    if (gid) return [self.active.messenger groupState:gid status:NULL inviter:NULL].name ?: L(@"Group");
     MeshStore *store = self.active.store;
     BOOL accepted = [store isAccepted:peerHex];
     return contactDisplayName(peerHex, [store nameForContact:peerHex], [store profileNameForContact:peerHex], accepted);
 }
 
 - (NSString *)pictureFor:(NSString *)peerHex {
+    NSString *gid = MeshGroupOfChat(peerHex);
+    if (gid) return [self.active.messenger groupPicture:gid];   // B7: nur beigetreten, passend zum Zustand
+    if (MeshIsTeamChat(peerHex)) return nil;
     MeshStore *store = self.active.store;
     return [store isAccepted:peerHex] ? [store picForContact:peerHex] : nil;
 }
 
 - (NSString *)aboutFor:(NSString *)peerHex {
+    if (MeshGroupOfChat(peerHex) || MeshIsTeamChat(peerHex)) return nil;
     MeshStore *store = self.active.store;
     return [store isAccepted:peerHex] ? [store aboutForContact:peerHex] : nil;
 }
 
-- (BOOL)isAccepted:(NSString *)peerHex { return [self.active.store isAccepted:peerHex]; }
+// Gruppe: beigetreten (auch wenn inzwischen nur noch lesbar); Einladung nicht. Team-Chat: immer.
+- (BOOL)isAccepted:(NSString *)peerHex {
+    if (MeshIsTeamChat(peerHex)) return YES;
+    NSString *gid = MeshGroupOfChat(peerHex);
+    if (gid) {
+        MeshGroupStatus status = MeshGroupInvited;
+        return [self.active.messenger groupState:gid status:&status inviter:NULL] && status != MeshGroupInvited;
+    }
+    return [self.active.store isAccepted:peerHex];
+}
 
 - (void)acceptContact:(NSString *)peerHex {
     [self.active.store setAccepted:peerHex];
     [self.active.store forgetProfileTimeOf:peerHex];   // das Profil mit Bild neu laden (als Anfrage nur der Name)
     [self.active.messenger sendPictureTo:peerHex];     // eigenes Bild privat; die Gegenseite antwortet mit ihrem
+    [self.active.messenger contactAccepted:peerHex];   // B8.5: zurückgehaltene Gruppeneinladungen von ihm
     [self requestProfileOf:peerHex];
     [self notifyProfileOf:peerHex];
     [self notify:MeshMessagesChangedNotification];
@@ -177,11 +229,15 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
 - (void)setVerified:(BOOL)verified for:(NSString *)peerHex { [self.active.store setVerified:peerHex verified:verified]; }
 
 - (void)deleteChat:(NSString *)peerHex {
-    [self.active.store deleteContact:peerHex];
+    NSString *gid = MeshGroupOfChat(peerHex);
+    if (MeshIsTeamChat(peerHex)) self.active.team.hidden = YES;   // Team-Chat: nur ausblenden
+    else if (gid) [self.active.messenger deleteGroup:gid];         // erst verlassen, dann lokal löschen
+    else [self.active.store deleteContact:peerHex];
     [self notify:MeshMessagesChangedNotification];
 }
 
 - (void)blockContact:(NSString *)peerHex {
+    if (MeshGroupOfChat(peerHex) || MeshIsTeamChat(peerHex)) return;
     [self.active.store blockContact:peerHex];
     [self notify:MeshMessagesChangedNotification];
 }
@@ -191,20 +247,75 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
 // Chats der angezeigten Identität, im gemeinsamen Posteingang die aller entsperrten (wie Android).
 - (NSArray *)chatList {
     NSMutableArray *chats = [NSMutableArray array];
+    MeshChat *team = nil;
     NSArray *identities = self.unifiedInbox ? [self unlockedIdentities] : @[self.active];
     for (MeshIdentity *i in identities) {
         if (!i.keys) continue;
+        NSMutableSet *groupsSeen = [NSMutableSet set];
         for (MeshChat *c in [i.store chatList]) {   // bringt Namen und Annahme gleich mit
-            c.name = contactDisplayName(c.pubkey, c.ownName, c.profileName, !c.unknown);
             c.identitySlot = i.slot;
             c.identityPubkey = i.pubkey;
+            if (MeshIsTeamChat(c.pubkey)) {   // angeheftet, nur für die angezeigte Identität
+                if (i == self.active && i.team && !i.team.hidden) { c.isTeam = YES; c.name = @"Mesh Team"; team = c; }
+                continue;
+            }
+            NSString *gid = MeshGroupOfChat(c.pubkey);
+            if (gid) {
+                if (![self fillGroupRow:c gid:gid identity:i]) continue;
+                [groupsSeen addObject:gid];
+            } else {
+                c.name = contactDisplayName(c.pubkey, c.ownName, c.profileName, !c.unknown);
+            }
             [chats addObject:c];
+        }
+        // Gruppen ohne Nachricht (Einladung, gerade angelegt)
+        for (NSString *gid in [i.store groupIds]) {
+            if ([groupsSeen containsObject:gid]) continue;
+            MeshChat *c = [[MeshChat alloc] init];
+            c.pubkey = MeshGroupChat(gid);
+            c.identitySlot = i.slot;
+            c.identityPubkey = i.pubkey;
+            c.ts = [i.store groupCreated:gid];
+            c.lastContent = @"";
+            if ([self fillGroupRow:c gid:gid identity:i]) [chats addObject:c];
         }
     }
     [chats sortUsingComparator:^NSComparisonResult(MeshChat *a, MeshChat *b) {
         return a.ts == b.ts ? NSOrderedSame : a.ts > b.ts ? NSOrderedAscending : NSOrderedDescending;
     }];
+    if (team) [chats insertObject:team atIndex:0];
     return chats;
+}
+
+// Name, Stand und Absender einer Gruppenzeile; NO, wenn der Zustand nicht lesbar ist.
+- (BOOL)fillGroupRow:(MeshChat *)c gid:(NSString *)gid identity:(MeshIdentity *)i {
+    MeshGroupStatus status = MeshGroupInvited;
+    NSString *inviter = nil;
+    MeshGroupState *s = [i.messenger groupState:gid status:&status inviter:&inviter];
+    if (!s) return NO;
+    c.isGroup = YES;
+    c.groupStatus = status;
+    c.name = s.name;
+    if (status == MeshGroupInvited && inviter)
+        c.inviter = contactDisplayName(inviter, [i.store nameForContact:inviter], [i.store profileNameForContact:inviter], YES);
+    if (c.sender.length && !c.fromMe) c.senderName = [self memberName:c.sender state:s store:i.store];
+    return YES;
+}
+
+// Mitglied: eigener Kontaktname (angenommen), sonst der Name aus der Gruppe mit "~abcd" (erste 4 Hex
+// des Pubkeys) dahinter, damit sich niemand unbemerkt als Kontakt ausgibt; ohne Namen das Kürzel.
+- (NSString *)memberName:(NSString *)pk state:(MeshGroupState *)s store:(MeshStore *)store {
+    if ([store isAccepted:pk]) return contactDisplayName(pk, [store nameForContact:pk], [store profileNameForContact:pk], YES);
+    NSString *n = [s nameOf:pk];
+    if (!n.length) return [pk substringToIndex:MIN((NSUInteger)8, pk.length)];
+    return [NSString stringWithFormat:@"%@ ~%@", n, [pk substringToIndex:MIN((NSUInteger)4, pk.length)]];
+}
+
+- (NSString *)senderName:(NSString *)pk inChat:(NSString *)chat {
+    if ([pk isEqualToString:[self myPubkeyHex]]) return L(@"You");
+    NSString *gid = MeshGroupOfChat(chat);
+    MeshGroupState *s = gid ? [self.active.messenger groupState:gid status:NULL inviter:NULL] : nil;
+    return [self memberName:pk state:s store:self.active.store];
 }
 
 - (NSArray *)messagesWith:(NSString *)peerHex { return [self.active.store messagesForChat:peerHex]; }

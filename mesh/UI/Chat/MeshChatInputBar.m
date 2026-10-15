@@ -3,11 +3,16 @@
 #import "MeshGlyphs.h"
 #import "MeshL10n.h"
 #import "MeshKeyboard.h"
+#import "MeshEmojiField.h"
 
 static const CGFloat kBarHeight = 54, kActionSize = 46, kFieldHeight = 36;
 
+@interface MeshChatInputBar () <MeshEmojiFieldDelegate>
+@end
+
 @implementation MeshChatInputBar {
-    UITextField *_field;
+    MeshEmojiField *_field;   // statt UITextField: zeichnet Emojis wie die Blasen
+    UIButton *_attach;
     UIButton *_action;
     UIView *_recBar;
     UILabel *_recLabel;
@@ -23,24 +28,21 @@ static const CGFloat kBarHeight = 54, kActionSize = 46, kFieldHeight = 36;
         line.backgroundColor = [MeshTheme line];
         [self addSubview:line];
 
-        UIButton *attach = [UIButton buttonWithType:UIButtonTypeCustom];
+        UIButton *attach = _attach = [UIButton buttonWithType:UIButtonTypeCustom];
         attach.frame = CGRectMake(8, (kBarHeight - 36) / 2, 36, 36);
         [attach setImage:[MeshGlyphs icon:@"add" color:[MeshTheme muted] size:24] forState:UIControlStateNormal];   // Anhänge, wie Android
         [attach addTarget:self action:@selector(tapCamera) forControlEvents:UIControlEventTouchUpInside];
         [attach addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(holdCamera:)]];
         [self addSubview:attach];
 
-        _field = [[UITextField alloc] initWithFrame:CGRectMake(48, (kBarHeight - kFieldHeight) / 2, W - 48 - 60, kFieldHeight)];
+        _field = [[MeshEmojiField alloc] initWithFrame:CGRectMake(48, (kBarHeight - kFieldHeight) / 2, W - 48 - 60, kFieldHeight)];
         _field.backgroundColor = [MeshTheme field];
         _field.textColor = [MeshTheme ink];
         _field.font = [MeshTheme bodyFont];
         _field.layer.cornerRadius = kFieldHeight / 2;
         _field.delegate = self;
         _field.returnKeyType = UIReturnKeySend;
-        _field.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;
-        _field.keyboardAppearance = UIKeyboardAppearanceAlert;
-        _field.leftView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 14, kFieldHeight)];
-        _field.leftViewMode = UITextFieldViewModeAlways;
+        _field.leftPadding = 14;
         _field.placeholder = L(@"Message");
         [_field addTarget:self action:@selector(refresh) forControlEvents:UIControlEventEditingChanged];
         [MeshKeyboard attachTo:_field];
@@ -95,8 +97,18 @@ static const CGFloat kBarHeight = 54, kActionSize = 46, kFieldHeight = 36;
 
 - (void)setRecording:(BOOL)recording { _recording = recording; _recBar.hidden = !recording; [self refresh]; }
 - (void)setMicrophoneAvailable:(BOOL)available { _microphoneAvailable = available; [self refresh]; }
+
+- (void)setTextOnly:(BOOL)textOnly {
+    _textOnly = textOnly;
+    _attach.hidden = textOnly;
+    CGFloat x = textOnly ? 10 : 48;
+    _field.frame = CGRectMake(x, _field.frame.origin.y, self.bounds.size.width - x - 60, kFieldHeight);
+    [self refresh];
+}
 - (void)setRecordingText:(NSString *)text { _recLabel.text = text; }
 - (void)endEditing { [_field resignFirstResponder]; }
+- (BOOL)becomeFirstResponder { return [_field becomeFirstResponder]; }
+- (BOOL)resignFirstResponder { return [_field resignFirstResponder]; }
 
 - (void)refresh {
     if (_recording) {
@@ -105,17 +117,17 @@ static const CGFloat kBarHeight = 54, kActionSize = 46, kFieldHeight = 36;
         return;
     }
     _action.backgroundColor = [MeshTheme accent];
-    BOOL mic = !self.hasText && _microphoneAvailable;
+    BOOL mic = !self.hasText && _microphoneAvailable && !_textOnly;
     [_action setImage:[MeshGlyphs icon:(mic ? @"mic" : @"send") color:[MeshTheme bg] size:20] forState:UIControlStateNormal];
 }
 
-- (void)tapCamera  { [_delegate inputBarTappedCamera:self]; }
+- (void)tapCamera  { if (!_textOnly) [_delegate inputBarTappedCamera:self]; }
 - (void)tapAction  { [_delegate inputBarTappedAction:self]; }
 - (void)tapCancel  { [_delegate inputBarCancelledRecording:self]; }
 - (void)holdCamera:(UILongPressGestureRecognizer *)g { if (g.state == UIGestureRecognizerStateBegan) [_delegate inputBarHeldCamera:self]; }
 - (void)holdAction:(UILongPressGestureRecognizer *)g { if (g.state == UIGestureRecognizerStateBegan) [_delegate inputBarHeldAction:self]; }
 
 // Return sendet nur vorhandenen Text (startet keine Aufnahme).
-- (BOOL)textFieldShouldReturn:(UITextField *)tf { if (self.hasText) [_delegate inputBarTappedAction:self]; return NO; }
+- (void)emojiFieldReturned:(MeshEmojiField *)field { if (self.hasText) [_delegate inputBarTappedAction:self]; }
 
 @end

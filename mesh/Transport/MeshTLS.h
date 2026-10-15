@@ -7,6 +7,11 @@
 
 @interface MeshTLS : NSObject
 
+// Gesetzt: über Tor mit diesen SOCKS-Zugangsdaten (Name = Passwort) verbinden. Tor trennt Verbindungen
+// mit verschiedenen Zugangsdaten auf eigene Kreise (IsolateSOCKSAuth, Standard). Ohne Tor oder wenn
+// Tor die Anmeldung nicht verlangt, wird nicht verbunden (nie ohne Trennung). Vor connectHost setzen.
+@property (nonatomic, copy) NSString *socksCredential;
+
 // TCP + TLS-Handshake zu host:port. NO bei Fehler (errorOut = mbedTLS-Code als String).
 - (BOOL)connectHost:(NSString *)host port:(int)port error:(NSString **)errorOut;
 

@@ -45,3 +45,22 @@ static BOOL nestingWithinLimit(NSData *data) {
 }
 
 @end
+
+BOOL MeshJSONShallow(NSData *data, NSUInteger maxDepth) {
+    const uint8_t *b = data.bytes;
+    NSUInteger depth = 0;
+    BOOL inString = NO, escaped = NO;
+    for (NSUInteger i = 0; i < data.length; i++) {
+        uint8_t c = b[i];
+        if (inString) {
+            if (escaped) escaped = NO;
+            else if (c == '\\') escaped = YES;
+            else if (c == '"') inString = NO;
+            continue;
+        }
+        if (c == '"') inString = YES;
+        else if (c == '[' || c == '{') { if (++depth > maxDepth) return NO; }
+        else if (c == ']' || c == '}') { if (depth) depth--; }
+    }
+    return YES;
+}

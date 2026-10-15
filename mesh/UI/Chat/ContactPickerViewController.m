@@ -16,6 +16,13 @@ static const CGFloat kRow = 68, kAvatar = 46;
     void (^_sent)(void);
     NSArray *_contacts;
     NSString *_card;   // gesetzt: diese Karte an den gewählten Kontakt schicken
+    NSString *_title;
+    BOOL (^_picked)(NSString *);
+}
+
+- (instancetype)initWithContacts:(NSArray *)contacts title:(NSString *)title picked:(BOOL (^)(NSString *))picked {
+    if ((self = [super init])) { _contacts = [contacts copy]; _title = [title copy]; _picked = [picked copy]; }
+    return self;
 }
 
 - (instancetype)initWithPeer:(NSString *)peerHex sent:(void (^)(void))sent {
@@ -37,10 +44,10 @@ static const CGFloat kRow = 68, kAvatar = 46;
 - (void)loadView {
     [self mesh_loadScreen];
     CGFloat W = self.view.bounds.size.width;
-    UIScrollView *page = [self mesh_addPageTitled:_card ? L(@"Share contact with…") : L(@"Send contact")];
+    UIScrollView *page = [self mesh_addPageTitled:_title ?: (_card ? L(@"Share contact with…") : L(@"Send contact"))];
     if (!_contacts.count) {
         UILabel *none = [MeshControls labelWithFrame:CGRectMake(30, 60, W - 60, 60) font:[MeshTheme previewFont] color:[MeshTheme muted]];
-        none.text = L(@"No other contacts to share");
+        none.text = _picked ? L(@"No contacts to choose") : L(@"No other contacts to share");
         none.textAlignment = NSTextAlignmentCenter;
         none.numberOfLines = 0;
         [page addSubview:none];
@@ -57,7 +64,7 @@ static const CGFloat kRow = 68, kAvatar = 46;
         av.pubkey = _contacts[i];
         av.userInteractionEnabled = NO;
         [row addSubview:av];
-        UILabel *name = [MeshControls labelWithFrame:CGRectMake(18 + kAvatar + 14, 0, W - kAvatar - 50, kRow) font:[MeshTheme bodyFont] color:[MeshTheme ink]];
+        UILabel *name = [MeshControls userLabelWithFrame:CGRectMake(18 + kAvatar + 14, 0, W - kAvatar - 50, kRow) font:[MeshTheme bodyFont] color:[MeshTheme ink]];
         name.text = [s displayNameFor:_contacts[i]];
         [row addSubview:name];
         [page addSubview:row];
@@ -67,6 +74,10 @@ static const CGFloat kRow = 68, kAvatar = 46;
 
 - (void)pick:(UIButton *)row {
     MeshSession *s = [MeshSession shared];
+    if (_picked) {
+        if (row.tag < (NSInteger)_contacts.count && _picked(_contacts[row.tag])) [self.navigationController popViewControllerAnimated:YES];
+        return;
+    }
     if (_card) {
         NSString *to = _contacts[row.tag];
         if (![s sendContact:_card to:to]) { [MeshPopup info:L(@"Failed")]; return; }

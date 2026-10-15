@@ -57,6 +57,7 @@ static const NSUInteger kMaxHeaderLine = 8192, kMaxHeaderLines = 64;
 }
 
 - (BOOL)handshakeHost:(NSString *)host port:(int)port path:(NSString *)path error:(NSString **)err {
+    _tls.socksCredential = _socksCredential;
     if (![_tls connectHost:host port:port error:err]) return NO;
 
     NSData *keyBytes = [MeshCrypto randomBytes:16];

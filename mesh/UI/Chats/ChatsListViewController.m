@@ -14,21 +14,26 @@
 #import "QRScannerViewController.h"
 #import "MeshTheme.h"
 #import "MeshChat.h"
+#import "MeshPayload.h"
 #import "MeshSession.h"
 #import "MeshGlyphs.h"
 #import "MeshKeyboard.h"
+#import "MeshEmojiField.h"
 #import "MeshL10n.h"
 #import "MeshPopup.h"
 #import "MeshIdentityInfo.h"
+#import "NewGroupViewController.h"
+#import "GroupInviteViewController.h"
+#import "GroupJoinLinkViewController.h"
 
-@interface ChatsListViewController () <UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate>
+@interface ChatsListViewController () <UITableViewDataSource, UITableViewDelegate, MeshEmojiFieldDelegate>
 @end
 
 @implementation ChatsListViewController {
     UITableView *_table;
     NSArray *_allChats;
     NSArray *_chats;          // _allChats, gefiltert nach dem Suchtext
-    UITextField *_search;
+    MeshEmojiField *_search;   // zeichnet Emojis wie die Blasen
     UILabel *_searchHint;
     NSDictionary *_identityPictures;   // Nummer -> Profilbild der eigenen Identität
     BOOL _loaded, _stale;     // _stale: verdeckt geändert, beim nächsten Erscheinen neu laden
@@ -54,11 +59,9 @@
     _searchHint = [[UILabel alloc] initWithFrame:CGRectMake(42, 0, W - 84, 42)];
     _searchHint.text = L(@"Search contacts"); _searchHint.font = [MeshTheme bodyFont]; _searchHint.textColor = [MeshTheme faint];
     _searchHint.backgroundColor = [UIColor clearColor]; [search addSubview:_searchHint];
-    _search = [[UITextField alloc] initWithFrame:CGRectMake(42, 0, W - 24 - 42 - 10, 42)];
+    _search = [[MeshEmojiField alloc] initWithFrame:CGRectMake(42, 0, W - 24 - 42 - 10, 42)];
     _search.font = [MeshTheme bodyFont]; _search.textColor = [MeshTheme ink];
-    _search.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;
     _search.autocorrectionType = UITextAutocorrectionTypeNo;
-    _search.keyboardAppearance = UIKeyboardAppearanceAlert;
     _search.returnKeyType = UIReturnKeyDone;
     _search.clearButtonMode = UITextFieldViewModeWhileEditing;
     _search.delegate = self;
@@ -86,6 +89,17 @@
     [fab setImage:[MeshGlyphs icon:(cam ? @"scan" : @"add") color:[MeshTheme bg] size:26] forState:UIControlStateNormal];
     [fab addTarget:self action:(cam ? @selector(tapScan) : @selector(tapAdd)) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:fab];
+    // Neue Gruppe: kleiner runder Knopf über dem Hinzufügen-Knopf
+    UIButton *group = [UIButton buttonWithType:UIButtonTypeCustom];
+    group.frame = CGRectMake(W - 70, H - barH - 78 - 54, 42, 42);
+    group.backgroundColor = [MeshTheme surfaceHi];
+    group.layer.cornerRadius = 21;
+    group.layer.borderWidth = 1;
+    group.layer.borderColor = [MeshTheme line].CGColor;
+    [group setImage:[MeshGlyphs icon:@"group" color:[MeshTheme accent] size:22] forState:UIControlStateNormal];
+    [group addTarget:self action:@selector(tapNewGroup) forControlEvents:UIControlEventTouchUpInside];
+    group.accessibilityLabel = L(@"New group");
+    [self.view addSubview:group];
 
     MeshTabBar *bar = [[MeshTabBar alloc] initWithFrame:CGRectMake(0, H - barH, W, barH) selected:MeshTabChats];
     MESH_WEAK ChatsListViewController *weakSelf = self;
@@ -167,11 +181,12 @@
     [_table reloadData];
 }
 
-- (BOOL)textFieldShouldReturn:(UITextField *)tf { [tf resignFirstResponder]; return NO; }
-- (BOOL)textFieldShouldClear:(UITextField *)tf { tf.text = @""; [self applyFilter]; return NO; }   // Löschknopf meldet kein EditingChanged
+- (void)emojiFieldReturned:(MeshEmojiField *)field { [field resignFirstResponder]; }
+- (BOOL)emojiFieldShouldClear:(MeshEmojiField *)field { field.text = @""; [self applyFilter]; return NO; }   // Text setzen meldet kein EditingChanged
 - (void)scrollViewWillBeginDragging:(UIScrollView *)sv { [_search resignFirstResponder]; }
 
 - (void)tapAdd { [self.navigationController pushViewController:[[AddContactViewController alloc] init] animated:YES]; }
+- (void)tapNewGroup { [self.navigationController pushViewController:[[NewGroupViewController alloc] init] animated:YES]; }
 - (void)tapMe  { [self.navigationController pushViewController:[[MeInViewController alloc] init] animated:YES]; }
 
 // Hinzufügen-Knopf → QR-Scanner. Ein gescannter Schlüssel legt den Kontakt an und öffnet den Chat.
@@ -180,6 +195,7 @@
     QRScannerViewController *sc = [[QRScannerViewController alloc] init];
     MESH_WEAK ChatsListViewController *weakSelf = self;
     sc.onScan = ^(NSString *payload) {
+        if ([GroupJoinLinkViewController openIfLink:payload name:nil from:weakSelf.navigationController]) return;   // B10: Gruppen-Link
         NSString *hex = [[MeshSession shared] addContact:payload name:nil];
         if (hex) [weakSelf.navigationController pushViewController:[[ChatViewController alloc] initWithPeer:hex] animated:YES];
         else     [MeshPopup info:L(@"This QR code doesn't contain a contact key.")];
@@ -198,11 +214,22 @@
     if (!cell) cell = [[MeshChatCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:rid];
     MeshChat *c = _chats[ip.row];
     cell.avatar.pubkey = c.pubkey;
-    cell.nameLabel.text = [MeshFormat contactName:c.name accepted:!c.unknown];
-    cell.nameLabel.textColor = c.unknown ? [MeshTheme muted] : [MeshTheme ink];
     NSString *preview = [MeshFormat preview:c.lastContent kind:c.lastKind];
-    cell.previewLabel.text = c.fromMe ? [L(@"You: ") stringByAppendingString:preview] : preview;
-    cell.timeLabel.text = [MeshFormat shortTime:c.ts];
+    if (c.isGroup && c.groupStatus == MeshGroupInvited) {   // Einladung: "Einladung: <Gruppe>" von <Admin>
+        cell.nameLabel.text = LF(@"Invitation: %@", c.name);
+        cell.nameLabel.textColor = [MeshTheme accent];
+        cell.previewLabel.text = LF(@"from %@", c.inviter ?: @"");
+    } else {
+        cell.nameLabel.text = c.isGroup || c.isTeam ? c.name : [MeshFormat contactName:c.name accepted:!c.unknown];
+        cell.nameLabel.textColor = c.unknown && !c.isGroup && !c.isTeam ? [MeshTheme muted] : [MeshTheme ink];
+        if (c.fromMe) preview = [L(@"You: ") stringByAppendingString:preview];
+        else if (c.isGroup && c.senderName.length && c.lastKind != MeshPayloadNotice) preview = [NSString stringWithFormat:@"%@: %@", c.senderName, preview];
+        if (c.isGroup && c.groupStatus == MeshGroupLinkJoining) preview = L(@"Joining…");
+        else if (c.isGroup && c.groupStatus == MeshGroupJoinFailed) preview = L(@"Joining failed");
+        else if (c.isGroup && c.groupStatus == MeshGroupInviteExpired) preview = L(@"Invitation expired");
+        cell.previewLabel.text = preview;
+    }
+    cell.timeLabel.text = c.ts ? [MeshFormat shortTime:c.ts] : @"";
     cell.identityBadge.hidden = ![MeshSession shared].unifiedInbox;
     cell.identityBadge.picture = _identityPictures[@(c.identitySlot)];
     cell.identityBadge.pubkey = c.identityPubkey;
@@ -214,7 +241,9 @@
     [_search resignFirstResponder];
     MeshChat *c = _chats[ip.row];
     [self switchFor:c];
-    [self.navigationController pushViewController:[[ChatViewController alloc] initWithPeer:c.pubkey] animated:YES];
+    UIViewController *vc = c.isGroup && c.groupStatus == MeshGroupInvited ? [[GroupInviteViewController alloc] initWithChat:c.pubkey]
+                                                                          : [[ChatViewController alloc] initWithPeer:c.pubkey];
+    [self.navigationController pushViewController:vc animated:YES];
 }
 
 // Langes Drücken auf einen Chat: löschen oder den Absender blockieren.
@@ -222,8 +251,30 @@
     if (g.state != UIGestureRecognizerStateBegan) return;
     NSIndexPath *ip = [_table indexPathForRowAtPoint:[g locationInView:_table]];
     if (!ip || ip.row >= (NSInteger)_chats.count) return;
-    [self switchFor:_chats[ip.row]];
-    NSString *peer = [_chats[ip.row] pubkey];
+    MeshChat *c = _chats[ip.row];
+    [self switchFor:c];
+    NSString *peer = c.pubkey;
+    if (c.isTeam) {   // Team-Chat: nur ausblenden (in "Ich" wieder an)
+        [MeshPopup sheet:c.name options:@[L(@"Hide")] destructiveIndex:-1 handler:^(NSInteger idx) {
+            if (idx == 0) [MeshSession shared].teamChatHidden = YES;
+        }];
+        return;
+    }
+    if (c.isGroup && (c.groupStatus == MeshGroupInviteExpired || c.groupStatus == MeshGroupJoinFailed)) {   // nur noch entfernen
+        [MeshPopup sheet:c.name options:@[L(@"Remove group")] destructiveIndex:0 handler:^(NSInteger idx) {
+            if (idx == 0) [[MeshSession shared] deleteChat:peer];
+        }];
+        return;
+    }
+    if (c.isGroup) {   // Gruppe: löschen heißt verlassen und lokal entfernen; Einladung: ablehnen
+        BOOL invite = c.groupStatus == MeshGroupInvited;
+        [MeshPopup sheet:c.name options:@[invite ? L(@"Decline") : L(@"Delete chat")] destructiveIndex:0 handler:^(NSInteger idx) {
+            if (idx != 0) return;
+            if (invite) { [[MeshSession shared] declineGroupInvite:peer]; return; }
+            [ChatViewController confirmDeleteGroup:peer done:nil];
+        }];
+        return;
+    }
     [MeshPopup sheet:[[MeshSession shared] displayNameFor:peer] options:@[L(@"Delete chat"), L(@"Block")]
      destructiveIndex:1 handler:^(NSInteger idx) {
         if (idx == 0) [[MeshSession shared] deleteChat:peer];

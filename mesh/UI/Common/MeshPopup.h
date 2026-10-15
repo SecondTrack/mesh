@@ -28,5 +28,8 @@
 + (void)input:(NSString *)title message:(NSString *)message placeholder:(NSString *)placeholder
        secure:(BOOL)secure numeric:(BOOL)numeric
       handler:(void(^)(NSString *text, BOOL ok))handler;
+// Freier Text mit Vorgabe (z.B. bisheriger Name zum Ändern), Emojis wie in den Blasen.
++ (void)input:(NSString *)title text:(NSString *)text placeholder:(NSString *)placeholder
+      handler:(void(^)(NSString *text, BOOL ok))handler;
 
 @end

@@ -8,15 +8,16 @@
 #import "MeshPageHeader.h"
 #import "MeshSession.h"
 #import "QRScannerViewController.h"
+#import "GroupJoinLinkViewController.h"
 #import "MeshL10n.h"
 #import "MeshControls.h"
 
-@interface AddContactViewController ()
+@interface AddContactViewController () <MeshEmojiFieldDelegate>
 @property (nonatomic, strong) UITextField *keyField;   // Property, weil der Scanner-Block es schwach füllt
 @end
 
 @implementation AddContactViewController {
-    UITextField *_nameField;
+    MeshEmojiField *_nameField;   // freier Text: Emojis wie in den Blasen
 }
 
 - (void)loadView {
@@ -48,7 +49,7 @@
 
     [self.view addSubview:[MeshControls sectionLabelWithFrame:CGRectMake(18, y, W - 36, 16) text:L(@"NAME (OPTIONAL)")]];
     y += 22;
-    _nameField = [MeshControls fieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"Display name") mono:NO delegate:self];
+    _nameField = [MeshControls textFieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"Display name") delegate:self];
     _nameField.returnKeyType = UIReturnKeyGo;   // Return fügt hinzu: der Knopf liegt bei offener Tastatur darunter
     [self.view addSubview:_nameField];
     y += 76;
@@ -66,6 +67,14 @@
 }
 
 - (void)tapAdd {
+    // B10: eingefügter oder gescannter Gruppen-Link -> Beitritts-Seite statt Kontakt
+    if ([[MeshSession shared] groupLinkDetails:self.keyField.text]) {
+        UINavigationController *nav = self.navigationController;
+        NSString *link = self.keyField.text;
+        [nav popViewControllerAnimated:NO];
+        [GroupJoinLinkViewController openIfLink:link name:nil from:nav];
+        return;
+    }
     if ([MeshSession looksLikePairingWords:self.keyField.text]) {   // 4 Wörter statt npub (Kontakt ohne Kamera)
         [self.keyField resignFirstResponder]; [_nameField resignFirstResponder];
         [MeshPopup info:L(@"Looking up the 4 words …")];
@@ -93,11 +102,14 @@
     [nav pushViewController:[[ChatViewController alloc] initWithPeer:hex] animated:YES];
 }
 
-- (BOOL)textFieldShouldReturn:(UITextField *)tf {
-    if (tf == self.keyField) { [_nameField becomeFirstResponder]; return NO; }
-    [tf resignFirstResponder];
-    [self tapAdd];
+- (BOOL)textFieldShouldReturn:(UITextField *)tf {   // Schlüsselfeld: weiter zum Namen
+    [_nameField becomeFirstResponder];
     return NO;
+}
+
+- (void)emojiFieldReturned:(MeshEmojiField *)field {   // Namensfeld: hinzufügen
+    [field resignFirstResponder];
+    [self tapAdd];
 }
 
 // Unter iOS 4 sind Delegates unsafe_unretained, hier selbst lösen.

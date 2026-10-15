@@ -1,4 +1,5 @@
 #import "MeshMenuRow.h"
+#import "MeshEmojiLabel.h"
 #import "MeshTheme.h"
 #import "MeshGlyphs.h"
 
@@ -35,7 +36,7 @@ static const CGFloat kRowHeight = 64, kTextX = 68;
     UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(kTextX, 13, w - kTextX - 40, 20)];
     t.text = title; t.font = [MeshTheme bodyFont]; t.textColor = [MeshTheme ink]; t.backgroundColor = [UIColor clearColor];
     [row addSubview:t];
-    UILabel *s = [[UILabel alloc] initWithFrame:CGRectMake(kTextX, 33, w - kTextX - 40, 16)];
+    UILabel *s = [[MeshEmojiLabel alloc] initWithFrame:CGRectMake(kTextX, 33, w - kTextX - 40, 16)];
     s.text = subtitle; s.font = [MeshTheme timeFont]; s.textColor = [MeshTheme muted]; s.backgroundColor = [UIColor clearColor];
     [row addSubview:s];
 

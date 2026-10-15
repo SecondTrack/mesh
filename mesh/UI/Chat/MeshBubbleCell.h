@@ -9,6 +9,10 @@
 @property (nonatomic, copy) void (^quoteTapped)(void);   // Zitat antippen: zur zitierten Nachricht springen
 - (void)setReactions:(NSString *)reactions;   // z.B. "👍❤️"
 + (CGFloat)extraHeightWithQuote:(BOOL)quote reactions:(BOOL)reactions;
+// Kleine Zeile über der Blase: Absender im Gruppenchat (in seiner Farbe), "an alle" im Team-Chat.
+// Vor setText:/… setzen; nil entfernt. Ihre Höhe kommt über extraHeightWithQuote:reactions:header: dazu.
+- (void)setHeader:(NSString *)text color:(UIColor *)color;
++ (CGFloat)extraHeightWithQuote:(BOOL)quote reactions:(BOOL)reactions header:(BOOL)header;
 
 - (void)setText:(NSString *)text fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
 - (void)setImage:(UIImage *)image fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
@@ -21,6 +25,9 @@
 // Geteilter Kontakt wie bei Android; action nil = keine Aktionszeile (eigene Karten).
 - (void)setContactCard:(NSString *)name pubkey:(NSString *)pubkey action:(NSString *)action glyph:(NSString *)glyph
                 fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
+// Dasselbe mit eigener Unterzeile (z.B. Gruppen-Link, B10) statt "Geteilter Kontakt".
+- (void)setCard:(NSString *)name subtitle:(NSString *)subtitle pubkey:(NSString *)pubkey action:(NSString *)action glyph:(NSString *)glyph
+         fromMe:(BOOL)fromMe status:(MeshMessageStatus)status width:(CGFloat)width;
 - (void)setVoiceProgress:(CGFloat)progress;              // 0…1 abgespielt
 
 + (CGFloat)heightForText:(NSString *)text width:(CGFloat)width;

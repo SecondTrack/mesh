@@ -74,6 +74,7 @@ static const NSUInteger kPreviewMax = 80;
             return [head rangeOfString:@"\1video/"].location != NSNotFound ? L(@"Video") : L(@"File");
         }
         case MeshPayloadContact: p = [MeshPayload parse:content]; return LF(@"Contact: %@", MeshCleanName(p.text));
+        case MeshPayloadGroupLink: p = [MeshPayload parse:content]; return LF(@"Group link: %@", MeshCleanName(p.text ?: @""));
         case MeshPayloadText:
         case MeshPayloadNotice:  break;
     }
@@ -95,6 +96,15 @@ static const NSUInteger kPreviewMax = 80;
     return LF(@"%d min", MAX(1, seconds / 60));
 }
 
++ (NSString *)members:(NSUInteger)n {
+    return n == 1 ? L(@"1 member") : LF(@"%lu members", (unsigned long)n);
+}
+
++ (NSString *)media:(NSUInteger)n photosOnly:(BOOL)photosOnly {
+    if (photosOnly) return n == 1 ? L(@"1 photo") : LF(@"%lu photos", (unsigned long)n);
+    return n == 1 ? L(@"1 photo or video") : LF(@"%lu photos and videos", (unsigned long)n);
+}
+
 + (NSString *)fileDetail:(NSString *)name mime:(NSString *)mime bytes:(long long)bytes {
     NSString *type = [mime hasPrefix:@"video/"] ? L(@"Video") : [mime hasPrefix:@"audio/"] ? L(@"Audio")
                    : [mime hasPrefix:@"image/"] ? L(@"Photo") : name.pathExtension.length ? name.pathExtension.uppercaseString : L(@"File");
@@ -106,12 +116,36 @@ static const NSUInteger kPreviewMax = 80;
 + (NSString *)notice:(NSString *)content peer:(NSString *)peerName {
     MeshPayload *n = [MeshPayload parseNotice:content];
     if (!n) return @"";
+    if (n.groupNotice) return [self groupNotice:n];
     if (n.keyChanged) return peerName ? LF(@"The safety number with %@ has changed", peerName) : L(@"Safety number changed");
     if (n.byMe) return n.seconds ? LF(@"You set disappearing messages to %@", [self timer:n.seconds])
                                  : L(@"You turned disappearing messages off");
     if (!peerName) return n.seconds ? LF(@"Disappearing messages: %@", [self timer:n.seconds]) : L(@"Disappearing messages off");
     return n.seconds ? LF(@"%@ set disappearing messages to %@", peerName, [self timer:n.seconds])
                      : LF(@"%@ turned disappearing messages off", peerName);
+}
+
+// Systemzeilen im Gruppenchat; der Name kommt aus dem Zustand der Gruppe (gesäubert).
++ (NSString *)groupNotice:(MeshPayload *)n {
+    NSString *name = MeshCleanName(n.text);
+    switch (n.groupNotice) {
+        case MeshGroupNoticeJoined:     return LF(@"%@ joined", name);
+        case MeshGroupNoticeLeft:       return LF(@"%@ left the group", name);
+        case MeshGroupNoticeRemoved:    return LF(@"%@ was removed", name);
+        case MeshGroupNoticeRenamed:    return LF(@"Group renamed to %@", name);
+        case MeshGroupNoticeYouRemoved: return L(@"You are no longer in the group");
+        case MeshGroupNoticeDissolved:  return L(@"Group dissolved");
+        case MeshGroupNoticeYouLeft:    return L(@"You left the group");
+        case MeshGroupNoticeCreated:    return LF(@"Group \"%@\" created", name);
+        case MeshGroupNoticeNewAdmin:   return LF(@"%@ is now admin", name);
+        case MeshGroupNoticeYouAdmin:   return L(@"You are now admin");
+        case MeshGroupNoticeInviteExpired: return L(@"Invitation expired");
+        case MeshGroupNoticeProposed:   return LF(@"You proposed %@", name);
+        case MeshGroupNoticeOpened:     return L(@"The group is now open");
+        case MeshGroupNoticeClosed:     return L(@"The group is no longer open");
+        case MeshGroupNoticeNone:       break;
+    }
+    return @"";
 }
 
 + (NSString *)contactName:(NSString *)name accepted:(BOOL)accepted {

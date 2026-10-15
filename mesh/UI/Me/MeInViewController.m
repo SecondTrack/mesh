@@ -1,6 +1,7 @@
 // "Ich": Profilbild, Name, Beschreibung und die Einstellungen
 // (Profil bearbeiten, Mein Code, Sicherheit, Ton).
 #import "MeInViewController.h"
+#import "MeshEmojiLabel.h"
 #import "MeshScreen.h"
 #import "MeshAvatarView.h"
 #import "MeshMenuRow.h"
@@ -53,11 +54,11 @@
     [scroll addSubview:avTap];
     y += 112 + 12;
 
-    _nameL = [[UILabel alloc] initWithFrame:CGRectMake(20, y, W-40, 26)];
+    _nameL = [[MeshEmojiLabel alloc] initWithFrame:CGRectMake(20, y, W-40, 26)];
     _nameL.font = [MeshTheme titleFont]; _nameL.textColor = [MeshTheme ink];
     _nameL.textAlignment = NSTextAlignmentCenter; _nameL.backgroundColor = [UIColor clearColor]; [scroll addSubview:_nameL];
     y += 29;
-    _aboutL = [[UILabel alloc] initWithFrame:CGRectMake(30, y, W-60, 18)];
+    _aboutL = [[MeshEmojiLabel alloc] initWithFrame:CGRectMake(30, y, W-60, 18)];
     _aboutL.font = [MeshTheme previewFont]; _aboutL.textAlignment = NSTextAlignmentCenter;
     _aboutL.backgroundColor = [UIColor clearColor]; [scroll addSubview:_aboutL];
     y += 34;
@@ -69,6 +70,10 @@
     y = [MeshMenuRow addTo:scroll y:y width:W icon:@"key" title:L(@"Identities") subtitle:L(@"Switch or add") target:self action:@selector(openIdentities)];
     if ([MeshCaps hasMicrophone])
         y = [MeshMenuRow addTo:scroll y:y width:W icon:@"mic" title:L(@"Sound & Microphone") subtitle:L(@"Gain, voice effect") target:self action:@selector(openAudio)];
+    // Ausgeblendeter Team-Chat: nur dann eine Zeile, um ihn wieder zu zeigen
+    MeshSession *session = [MeshSession shared];
+    if (session.teamChatAvailable && session.teamChatHidden)
+        y = [MeshMenuRow addTo:scroll y:y width:W icon:@"chat" title:L(@"Mesh Team") subtitle:L(@"Show the team chat again") target:self action:@selector(showTeam:)];
     y += 30;
     scroll.contentSize = CGSizeMake(W, y);
 
@@ -113,5 +118,11 @@
     [self mesh_present:[[MeshImageViewer alloc] initWithImage:big] animated:YES];
 }
 - (void)goChats  { [self.navigationController popViewControllerAnimated:YES]; }
+
+- (void)showTeam:(UIButton *)row {
+    [MeshSession shared].teamChatHidden = NO;
+    row.enabled = NO;
+    row.alpha = 0.4f;
+}
 
 @end

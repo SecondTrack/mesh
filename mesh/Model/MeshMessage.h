@@ -10,6 +10,8 @@ typedef NS_ENUM(NSInteger, MeshMessageStatus) {
     MeshMessageFailed    = 2    // innerhalb der Frist von keinem Relay angenommen
 };
 
+extern NSString *const MeshSenderAll, *const MeshSenderApp;
+
 @interface MeshMessage : NSObject
 @property (nonatomic, assign) long long rowId;
 @property (nonatomic, assign) MeshPayloadKind kind;
@@ -24,6 +26,9 @@ typedef NS_ENUM(NSInteger, MeshMessageStatus) {
 @property (nonatomic, copy)   NSString *reactMine, *reactPeer;   // je ein Emoji oder nil
 @property (nonatomic, assign) int timer;           // Selbstlöschen nach so vielen Sekunden, 0 = nie
 @property (nonatomic, assign) long long expiresAt; // Unix-Sekunden; 0 = Uhr läuft noch nicht
+// Gruppe: Pubkey des Absenders (empfangene); Team-Chat: MeshSenderAll (Rundbrief) bzw. MeshSenderApp
+// (lokale Begrüßung). nil sonst.
+@property (nonatomic, copy)   NSString *sender;
 
 - (NSString *)key;   // Ziel für Reaktionen und Löschen: cmid, bei alten Nachrichten die Event-ID
 @end

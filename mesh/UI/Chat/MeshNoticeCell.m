@@ -1,4 +1,5 @@
 #import "MeshNoticeCell.h"
+#import "MeshEmojiLabel.h"
 #import "MeshTheme.h"
 #import "MeshEmoji.h"
 
@@ -12,7 +13,7 @@ static const CGFloat kPadX = 14, kPadY = 5, kRowPad = 6, kMaxFrac = 0.8f;
     if ((self = [super initWithStyle:style reuseIdentifier:rid])) {
         self.backgroundColor = [MeshTheme bg];
         self.selectionStyle = UITableViewCellSelectionStyleNone;
-        _label = [[UILabel alloc] init];
+        _label = [[MeshEmojiLabel alloc] init];
         _label.font = [MeshTheme timeFont];
         _label.textColor = [MeshTheme muted];
         _label.backgroundColor = [MeshTheme surface];

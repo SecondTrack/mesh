@@ -90,7 +90,7 @@ static const CGFloat kAvatar = 58, kItem = 74, kRowHeight = 96;
         [plus addSubview:p];
         [b addSubview:plus];
     }
-    UILabel *name = [MeshControls labelWithFrame:CGRectMake(2, kAvatar + 10, kItem - 4, 16) font:[MeshTheme timeFont]
+    UILabel *name = [MeshControls userLabelWithFrame:CGRectMake(2, kAvatar + 10, kItem - 4, 16) font:[MeshTheme timeFont]
                                            color:active ? [MeshTheme accent] : [MeshTheme muted]];
     name.text = title;
     name.textAlignment = NSTextAlignmentCenter;

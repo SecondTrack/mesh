@@ -9,4 +9,7 @@
 - (void)fakeFail;   // Verbindungsaufbau scheitert
 - (void)fakeOK:(NSString *)eventId;
 - (void)fakeAuth;   // Relay verlangt NIP-42-Anmeldung
+- (void)fakeWrite;  // Schreib-Warteschlange abgearbeitet (relayDidDrain:, wenn etwas abgelehnt war)
+- (int)refused;     // wegen voller Warteschlange abgelehnte Events
+- (NSArray *)published;   // Event-IDs dieser Verbindung
 @end

@@ -9,6 +9,7 @@
 #import "MeshDeviceSecret.h"
 #import "MeshHex.h"
 #import "MeshMemory.h"
+#import "MeshTeam.h"
 
 static NSString *const kSlots = @"mesh.identities", *const kActive = @"mesh.activeIdentity";
 
@@ -67,9 +68,13 @@ static NSString *const kSlots = @"mesh.identities", *const kActive = @"mesh.acti
     _messenger = [[MeshMessenger alloc] initWithStore:_store keys:keys inbox:_inbox panic:panic];
     _messenger.signal = _signal;
     _messenger.delegate = delegate;
+    _team = [MeshTeam teamWithStore:_store myPubkey:_pubkey];   // gestartet wird er von MeshSession
+    [_messenger maintainGroups];   // alte Einladungen vergessen, zurückgehaltene von Kontakten zeigen (B8.5)
 }
 
 - (void)lock {
+    [_messenger finishPendingSends];   // ausstehende Gruppen-Kopien in die Warteschlange, solange Schlüssel da sind
+    [_team lock]; _team.delegate = nil; _team = nil;   // E aus dem RAM, getrennte Verbindung zu
     [_keys wipe]; _keys = nil;
     [_messenger wipeKeys];
     _messenger = nil;

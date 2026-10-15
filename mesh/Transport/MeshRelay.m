@@ -3,6 +3,7 @@
 #import "MeshEvent.h"
 #import "MeshLog.h"
 #import "MeshJSON.h"
+#import <libkern/OSAtomic.h>
 
 // Threads: connect/disconnect/send und alle Delegate-Callbacks laufen auf dem Main-Thread,
 // das Lesen auf einem eigenen Thread, Schreiben und Schließen seriell auf _writeQueue.
@@ -15,7 +16,11 @@
     dispatch_queue_t _writeQueue;   // serielles Senden abseits des Main-Threads (sonst UI-Hänger)
     BOOL _connected;
     volatile BOOL _stop;            // vom Main-Thread gesetzt, vom Lese-Thread gelesen
+    volatile int64_t _queued;       // Bytes in _writeQueue (atomar: Main-Thread zählt hoch, Schreib-Queue runter)
+    volatile int32_t _refused;      // seit dem letzten Leerlauf ein großes Event abgelehnt
 }
+
+- (long long)queuedBytes { return OSAtomicAdd64Barrier(0, &_queued); }
 
 - (instancetype)initWithURL:(NSString *)wssUrl {
     if ((self = [super init])) {
@@ -53,6 +58,7 @@
     if (_thread) return;
     _stop = NO;
     _ws = [[MeshWebSocket alloc] init];
+    _ws.socksCredential = _socksCredential;
     _thread = [[NSThread alloc] initWithTarget:self selector:@selector(run:) object:_ws];
     [_thread start];
 }
@@ -120,14 +126,22 @@
 
 #pragma mark - Senden
 
-- (void)sendJSON:(NSArray *)arr {
-    if (!_connected) return;
+- (BOOL)sendJSON:(NSArray *)arr {
+    if (!_connected) return NO;
     NSData *d = [MeshJSON dataWithObject:arr];
     NSString *s = [[NSString alloc] initWithData:d encoding:NSUTF8StringEncoding];
+    int64_t bytes = (int64_t)d.length;
+    d = nil;
+    OSAtomicAdd64Barrier(bytes, &_queued);
     // Senden auf serieller Hintergrund-Queue: blockiert nie den Main-Thread (TLS-Write wartet
     // ggf. kurz auf den I/O-Lock des Lese-Threads). Reihenfolge bleibt erhalten.
     MeshWebSocket *ws = _ws;
-    dispatch_async(_writeQueue, ^{ [ws sendText:s]; });   // nach close liefert sendText nur NO
+    dispatch_async(_writeQueue, ^{
+        @autoreleasepool { [ws sendText:s]; }   // nach close liefert sendText nur NO
+        if (OSAtomicAdd64Barrier(-bytes, &self->_queued) == 0 && OSAtomicCompareAndSwap32Barrier(1, 0, &self->_refused))
+            [self tell:@selector(relayDidDrain:) call:^(id<MeshRelayDelegate> dl) { [dl relayDidDrain:self]; }];
+    });
+    return YES;
 }
 
 - (void)subscribe:(NSString *)subId filter:(NSDictionary *)filter {
@@ -138,8 +152,23 @@
     [self sendJSON:@[@"CLOSE", subId]];
 }
 
-- (void)publish:(MeshEvent *)event {
-    [self sendJSON:@[@"EVENT", [event toJSONObject]]];
+- (void)notifyWhenDrained {
+    OSAtomicCompareAndSwap32Barrier(0, 1, &_refused);
+    if (self.queuedBytes == 0 && OSAtomicCompareAndSwap32Barrier(1, 0, &_refused))
+        [self tell:@selector(relayDidDrain:) call:^(id<MeshRelayDelegate> d) { [d relayDidDrain:self]; }];
+}
+
+// Große Events (Gruppen-Medien) nicht stapeln: jedes Relay hält seine eigene serialisierte Kopie, bis sie
+// geschrieben ist. Geschätzt vor dem Serialisieren, damit Abgelehntes keinen Speicher kostet.
+- (BOOL)publish:(MeshEvent *)event {
+    if (!_connected) return NO;
+    int64_t estimate = (int64_t)event.content.length + 1024;
+    int64_t queued = self.queuedBytes;
+    if (estimate > MeshRelayLargeEvent && queued > 0 && queued + estimate > MeshRelayQueueCap) {
+        [self notifyWhenDrained];   // falls inzwischen leer geworden: gleich
+        return NO;
+    }
+    return [self sendJSON:@[@"EVENT", [event toJSONObject]]];
 }
 
 - (void)sendAuth:(MeshEvent *)authEvent {

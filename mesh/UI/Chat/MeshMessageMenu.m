@@ -13,7 +13,8 @@ typedef NS_ENUM(NSInteger, MeshMessageAction) { MeshActionReply, MeshActionCopy,
 + (NSArray *)reactions { return @[@"👍", @"❤️", @"😂", @"😮", @"😢", @"🙏"]; }
 
 + (void)showFor:(MeshMessage *)m peer:(NSString *)peer reply:(void (^)(void))reply {
-    BOOL referable = m.key.length > 0;   // gesendet: lässt sich beim Gegenüber finden
+    // gesendet: lässt sich beim Gegenüber finden. Team-Chat: keine Antworten, Reaktionen, Löschen für alle.
+    BOOL referable = m.key.length > 0 && ![[MeshSession shared] isTeamChat:peer];
     BOOL text = m.kind == MeshPayloadText;
     NSMutableArray *titles = [NSMutableArray array], *actions = [NSMutableArray array];
     if (!m.fromMe && referable) { [titles addObject:L(@"Reply")]; [actions addObject:@(MeshActionReply)]; }

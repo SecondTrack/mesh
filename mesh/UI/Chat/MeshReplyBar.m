@@ -1,4 +1,5 @@
 #import "MeshReplyBar.h"
+#import "MeshEmojiLabel.h"
 #import "MeshTheme.h"
 #import "MeshGlyphs.h"
 
@@ -31,7 +32,7 @@ static const CGFloat kHeight = 46, kBar = 3, kClose = 44;
 }
 
 - (UILabel *)labelAt:(CGRect)frame color:(UIColor *)color {
-    UILabel *l = [[UILabel alloc] initWithFrame:frame];
+    UILabel *l = [[MeshEmojiLabel alloc] initWithFrame:frame];
     l.font = [MeshTheme timeFont];
     l.textColor = color;
     l.backgroundColor = [UIColor clearColor];

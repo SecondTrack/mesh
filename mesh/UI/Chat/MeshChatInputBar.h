@@ -13,13 +13,14 @@
 - (void)inputBarCancelledRecording:(MeshChatInputBar *)bar;
 @end
 
-@interface MeshChatInputBar : UIView <UITextFieldDelegate>
+@interface MeshChatInputBar : UIView
 + (CGFloat)height;
 @property (nonatomic, mesh_weak) id<MeshChatInputBarDelegate> delegate;
 @property (nonatomic, copy) NSString *text;
 @property (nonatomic, readonly) BOOL hasText;             // ohne Leerraum
 @property (nonatomic) BOOL recording;                     // Aufnahme-Leiste und Stopp-Knopf
 @property (nonatomic) BOOL microphoneAvailable;           // sonst bei leerem Feld Senden statt Mikrofon
+@property (nonatomic) BOOL textOnly;                      // nur Text (Team-Chat): ohne Anhang und Mikrofon
 - (void)setRecordingText:(NSString *)text;
 - (void)endEditing;
 @end

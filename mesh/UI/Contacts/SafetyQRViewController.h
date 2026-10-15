@@ -3,4 +3,6 @@
 
 @interface SafetyQRViewController : UIViewController
 - (instancetype)initWithPayload:(NSString *)payload peerName:(NSString *)name;
+// Gleiche Ansicht für anderes (z.B. Gruppen-Link, B10): eigener Titel und Hinweis darunter.
+- (instancetype)initWithPayload:(NSString *)payload title:(NSString *)title hint:(NSString *)hint;
 @end

@@ -10,6 +10,8 @@ static const CGFloat kHeight = 216, kKeyRadius = 5;
 static const CGFloat kEmojiBar = 40, kEmojiSize = 30;
 static const int kEmojiCols = 8, kEmojiRows = 4, kRecentMax = kEmojiCols * kEmojiRows;
 static NSString *const kLayoutDefault = @"MeshKeyboardLayout";   // nur "de"/"en" – nie Getipptes
+NSString *const MeshKeyTargetDidBeginEditingNotification = @"MeshKeyTargetDidBeginEditing";
+NSString *const MeshKeyTargetDidEndEditingNotification = @"MeshKeyTargetDidEndEditing";
 
 typedef NS_ENUM(NSInteger, MeshShift) { MeshShiftOff, MeshShiftOnce, MeshShiftLock };
 
@@ -319,7 +321,7 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
 @end
 
 @implementation MeshKeyboard {
-    MESH_WEAK UIResponder<UITextInput> *_target;
+    MESH_WEAK UIResponder<UIKeyInput> *_target;   // UITextField, UITextView oder MeshKeyTarget
     NSString *_lang;
     MeshKeyPage _page;
     MeshShift _shift;
@@ -353,7 +355,7 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
     return kb;
 }
 
-+ (void)attachTo:(UIResponder<UITextInput> *)field {
++ (void)attachTo:(UIResponder<UIKeyInput> *)field {
     if ([field respondsToSelector:@selector(setInputView:)]) [(id)field setInputView:[self shared]];
 }
 
@@ -386,6 +388,8 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
         [nc addObserver:self selector:@selector(endedEditing:) name:UITextViewTextDidEndEditingNotification object:nil];
         [nc addObserver:self selector:@selector(textChanged:) name:UITextFieldTextDidChangeNotification object:nil];
         [nc addObserver:self selector:@selector(textChanged:) name:UITextViewTextDidChangeNotification object:nil];
+        [nc addObserver:self selector:@selector(beganEditing:) name:MeshKeyTargetDidBeginEditingNotification object:nil];
+        [nc addObserver:self selector:@selector(endedEditing:) name:MeshKeyTargetDidEndEditingNotification object:nil];
     }
     return self;
 }
@@ -448,9 +452,15 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
     return s ?: @"";
 }
 
+- (BOOL)ownTarget { return [_target conformsToProtocol:@protocol(MeshKeyTarget)]; }
+
 - (NSRange)selection {
-    UIResponder<UITextInput> *t = _target;
     NSUInteger len = [self fieldText].length;
+    if ([self ownTarget]) {
+        NSRange r = [(id<MeshKeyTarget>)_target selectedRange];
+        return NSMaxRange(r) <= len ? r : NSMakeRange(len, 0);
+    }
+    UIResponder<UITextInput> *t = (UIResponder<UITextInput> *)_target;
     UITextRange *r = t.selectedTextRange;
     if (!r) return NSMakeRange(len, 0);
     NSInteger a = [t offsetFromPosition:t.beginningOfDocument toPosition:r.start];
@@ -462,7 +472,7 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
 
 // Wie UIKit beim Tippen: erst den Delegate fragen. NO = abgelehnt (oder Feld gewechselt).
 - (BOOL)mayReplace:(NSRange)range with:(NSString *)s {
-    UIResponder<UITextInput> *t = _target;
+    UIResponder<UIKeyInput> *t = _target;
     if (!t) return NO;
     if ([t isKindOfClass:[UITextField class]]) {
         UITextField *tf = (UITextField *)t;
@@ -480,7 +490,7 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
 
 // Meldungen wie beim Tippen, falls UIKit sie nicht selbst schickt
 - (void)didChange {
-    UIResponder<UITextInput> *t = _target;
+    UIResponder<UIKeyInput> *t = _target;
     if (!_sawChange) {
         if ([t isKindOfClass:[UITextField class]]) {
             [(UITextField *)t sendActionsForControlEvents:UIControlEventEditingChanged];
@@ -498,7 +508,7 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
 // iOS 6 zählt Positionen nicht in UTF-16, nach einem Emoji (2 Einheiten) liefen Offsets ins Leere
 // und weder Text noch ein weiteres Emoji kam an.
 - (void)insert:(NSString *)s {
-    UIResponder<UITextInput> *t = _target;
+    UIResponder<UIKeyInput> *t = _target;
     if (!t || !s.length || ![self mayReplace:[self selection] with:s]) return;
     _sawChange = NO;
     [t insertText:s];
@@ -506,8 +516,9 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
 }
 
 - (void)deleteBackward {
-    UIResponder<UITextInput> *t = _target;
+    UIResponder<UIKeyInput> *t = _target;
     if (!t) return;
+    if ([self ownTarget]) { [t deleteBackward]; [self didChange]; return; }   // löscht selbst ganze Zeichen
     NSRange sel = [self selection];
     if (!sel.length) {
         if (!sel.location) return;
@@ -527,7 +538,8 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
 
 // Beliebigen Bereich ersetzen (über UITextInput-Offsets)
 - (void)replaceRange:(NSRange)range with:(NSString *)s {
-    UIResponder<UITextInput> *t = _target;
+    UIResponder<UITextInput> *t = (UIResponder<UITextInput> *)_target;
+    if (![t conformsToProtocol:@protocol(UITextInput)]) return;
     if (![self mayReplace:range with:s]) return;
     UITextPosition *a = [t positionFromPosition:t.beginningOfDocument offset:(NSInteger)range.location];
     UITextPosition *b = a ? [t positionFromPosition:a offset:(NSInteger)range.length] : nil;
@@ -540,8 +552,11 @@ static UIImage *renderEmojiPage(NSArray *keys, CGSize size, CGFloat scale) {
 }
 
 - (void)pressReturn {
-    UIResponder<UITextInput> *t = _target;
-    if ([t isKindOfClass:[UITextField class]]) {
+    UIResponder<UIKeyInput> *t = _target;
+    if ([self ownTarget]) {
+        [(id<MeshKeyTarget>)t returnPressed];
+        [self recheckAutoShift];
+    } else if ([t isKindOfClass:[UITextField class]]) {
         UITextField *tf = (UITextField *)t;
         id<UITextFieldDelegate> d = tf.delegate;
         BOOL ok = [d respondsToSelector:@selector(textFieldShouldReturn:)] ? [d textFieldShouldReturn:tf] : YES;

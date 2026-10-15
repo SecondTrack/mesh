@@ -10,7 +10,17 @@
 // Ausweichen der Seiten (MeshScreen, Chat) bleibt unverändert.
 #import <UIKit/UIKit.h>
 
+// Eigene Eingabefelder ohne UITextInput (MeshEmojiField): Einfügemarke immer am Ende,
+// deleteBackward löscht selbst ganze Emojis. Beginn und Ende melden sie mit den Notifications unten.
+@protocol MeshKeyTarget <UIKeyInput>
+@property (nonatomic, readonly, copy) NSString *text;
+@property (nonatomic, readonly) NSRange selectedRange;   // Ende oder alles
+- (void)returnPressed;
+@end
+extern NSString *const MeshKeyTargetDidBeginEditingNotification;
+extern NSString *const MeshKeyTargetDidEndEditingNotification;
+
 @interface MeshKeyboard : UIView <UIInputViewAudioFeedback>
-// Die Mesh-Tastatur für ein UITextField oder UITextView (setzt dessen inputView; eine gemeinsame Tastatur).
-+ (void)attachTo:(UIResponder<UITextInput> *)field;
+// Die Mesh-Tastatur für ein UITextField, UITextView oder MeshKeyTarget (setzt dessen inputView; eine gemeinsame Tastatur).
++ (void)attachTo:(UIResponder<UIKeyInput> *)field;
 @end

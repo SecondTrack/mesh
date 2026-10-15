@@ -9,10 +9,19 @@
 @interface Spy : NSObject <MeshRelayPoolDelegate>
 @property int subsAsked, authAsked, stored;
 @property (nonatomic, copy) NSArray *pending;
+@property (nonatomic, copy) NSSet *lastExcluded;
+@property int excludingAsked;
 @end
 @implementation Spy
 - (NSDictionary *)subscriptionsForPool:(MeshRelayPool *)p { self.subsAsked++; return @{ @"s": @{} }; }
 - (NSArray *)pendingEventsForPool:(MeshRelayPool *)p { return self.pending; }
+- (NSArray *)pendingEventsForPool:(MeshRelayPool *)p excluding:(NSSet *)ids {
+    self.excludingAsked++;
+    self.lastExcluded = ids;
+    NSMutableArray *out = [NSMutableArray array];
+    for (MeshEvent *e in self.pending) if (![ids containsObject:e.eventId]) [out addObject:e];
+    return out;
+}
 - (MeshEvent *)pool:(MeshRelayPool *)p authEventForRelay:(NSString *)u challenge:(NSString *)c {
     self.authAsked++; return [MeshEvent kind:22242 content:@"" tags:@[]];
 }
@@ -88,6 +97,76 @@ int main(void) { @autoreleasepool {
     check(spy.stored == 2, "OK for resent event counts");
     [a fakeAuth];
     check(spy.authAsked == 2, "new connection may AUTH again");
+
+    [pool stop];
+
+    // Volle Schreib-Warteschlange: große Events abgelehnt, nach dem Leerlauf nur Fehlendes nachgereicht
+    MeshRelayPool *media = [[MeshRelayPool alloc] initWithURLs:@[@"wss://m"]];
+    MeshRelay *m = [[media valueForKey:@"relays"] firstObject];
+    Spy *ms = [Spy new]; media.delegate = ms; media.timeUnit = kUnit;
+    NSMutableArray *big = [NSMutableArray array];
+    for (int i = 0; i < 5; i++) {
+        MeshEvent *e = [MeshEvent kind:4 content:[@"" stringByPaddingToLength:700 * 1024 withString:@"x" startingAtIndex:0] tags:@[]];
+        e.eventId = [NSString stringWithFormat:@"big%d", i];
+        [big addObject:e];
+    }
+    ms.pending = big;
+    [media start];
+    [m fakeUp];
+    check(m.published.count == 2 && m.refused == 1 && m.queuedBytes <= MeshRelayQueueCap, "relay queue capped: 2 of 5 large events taken");
+    [m fakeWrite];
+    check(ms.excludingAsked == 1 && [ms.lastExcluded isEqualToSet:[NSSet setWithObjects:@"big0", @"big1", nil]], "drain: top up without what was sent");
+    check(m.published.count == 4 && m.refused == 2, "drain: next two go out, the fifth waits");
+    [m fakeWrite];
+    check(m.published.count == 5, "next drain: the rest goes out");
+    [m fakeWrite];
+    check(ms.excludingAsked == 2, "no refusal: no drain callback");
+    [m fakeOK:@"big0"];
+    check(ms.stored == 1 && ms.excludingAsked == 3, "OK counted; one more (empty) check for more");
+    [m fakeOK:@"big1"];
+    check(ms.stored == 2 && ms.excludingAsked == 3, "quiet once nothing is left");
+    MeshEvent *small = [MeshEvent kind:4 content:@"hi" tags:@[]];
+    small.eventId = @"small";
+    [m publish:big[0]]; [m publish:big[1]]; [m publish:big[2]];
+    check([m publish:small], "small events never refused");
+    [media stop];
+
+    // jitter (getrennte Verbindung): nie im selben Moment wie die Identität, eigene Pause vor jedem Verbinden
+    MeshRelayPool *anon = [[MeshRelayPool alloc] initWithURLs:@[@"wss://x", @"wss://y"]];
+    anon.jitter = YES;
+    anon.timeUnit = kUnit;
+    NSArray *ar = [anon valueForKey:@"relays"];
+    MeshRelay *x = ar[0], *y = ar[1];
+    Spy *as = [Spy new]; anon.delegate = as;
+    [anon start];
+    check(x.connectCalls == 0 && y.connectCalls == 0, "jitter: nothing at start");
+    [[NSNotificationCenter defaultCenter] postNotificationName:MeshTransportChangedNotification object:nil];
+    check(x.connectCalls == 0 && y.connectCalls == 0, "jitter: no reaction in the same moment as the transport notification");
+    spin(4 * kUnit);
+    check(x.connectCalls == 0 && y.connectCalls == 0, "jitter: at least 5 s pause");
+    for (int i = 0; i < 80 && (x.connectCalls == 0 || y.connectCalls == 0); i++) spin(kUnit);
+    check(x.connectCalls == 1 && y.connectCalls == 1, "jitter: both connect within 5-60 s");
+    [x fakeUp];
+    [anon reconnectNow];
+    [x fakeDrop];
+    int afterDrop = x.connectCalls;
+    spin(4 * kUnit);
+    check(x.connectCalls == afterDrop, "jitter: reconnect also waits at least 5 s (no lockstep after a drop)");
+    for (int i = 0; i < 200 && x.connectCalls == afterDrop; i++) spin(kUnit);
+    check(x.connectCalls == afterDrop + 1, "jitter: reconnects after its own pause");
+    NSMutableSet *delays = [NSMutableSet set];
+    for (int run = 0; run < 3; run++) {
+        MeshRelayPool *p2 = [[MeshRelayPool alloc] initWithURLs:@[@"wss://z"]];
+        p2.jitter = YES; p2.timeUnit = kUnit;
+        [p2 start];
+        NSDate *due = [[p2 valueForKey:@"nextTry"] objectForKey:@"wss://z"];
+        NSTimeInterval d = [due timeIntervalSinceNow] / kUnit;
+        check(d >= 4.9 && d <= 60.1, "jitter: delay in 5-60 s");
+        [delays addObject:@((int)(d * 100))];
+        [p2 stop];
+    }
+    check(delays.count > 1, "jitter: delays are random");
+    [anon stop];
 
     return testsDone();
 }}

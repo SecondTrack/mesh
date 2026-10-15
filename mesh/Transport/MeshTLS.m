@@ -128,6 +128,10 @@ static int MeshVerifyTime(void *ctx, mbedtls_x509_crt *crt, int depth, uint32_t 
         if (errorOut) *errorOut = @"Tor nicht bereit";
         return NO;
     }
+    if (_socksCredential.length && socks <= 0) {    // getrennter Kreis geht nur über Tor
+        if (errorOut) *errorOut = @"SOCKS: keine Trennung ohne Tor";
+        return NO;
+    }
     if (socks > 0) {
         char sp[8]; snprintf(sp, sizeof(sp), "%d", socks);
         ret = mbedtls_net_connect(&_fd, "127.0.0.1", sp, MBEDTLS_NET_PROTO_TCP);
@@ -193,10 +197,25 @@ static BOOL recvAll(mbedtls_net_context *fd, unsigned char *p, size_t n) {
     const char *h = host.UTF8String; size_t hlen = h ? strlen(h) : 0;
     if (hlen == 0 || hlen > 255) { if (errorOut) *errorOut = @"SOCKS: host length"; return NO; }
 
-    // Begrüßung: VER=5, 1 Methode, 0x00 = ohne Anmeldung
-    unsigned char greet[3] = { 0x05, 0x01, 0x00 }, resp[2];
-    if (!sendAll(&_fd, greet, 3) || !recvAll(&_fd, resp, 2) || resp[0] != 0x05 || resp[1] != 0x00) {
+    // Begrüßung: VER=5, 1 Methode: 0x00 = ohne Anmeldung, 0x02 = Name/Passwort (eigener Tor-Kreis).
+    // Mit Zugangsdaten nur diese Methode anbieten: nimmt der Proxy sie nicht, gibt es keine Trennung.
+    const char *cred = _socksCredential.UTF8String;
+    size_t clen = cred ? strlen(cred) : 0;
+    if (clen > 255) { if (errorOut) *errorOut = @"SOCKS: credential length"; return NO; }
+    unsigned char method = clen ? 0x02 : 0x00;
+    unsigned char greet[3] = { 0x05, 0x01, method }, resp[2];
+    if (!sendAll(&_fd, greet, 3) || !recvAll(&_fd, resp, 2) || resp[0] != 0x05 || resp[1] != method) {
         if (errorOut) *errorOut = @"SOCKS: greeting refused"; return NO;
+    }
+    if (clen) {   // RFC 1929: VER=1, Name, Passwort (Tor prüft nichts, trennt aber danach)
+        unsigned char auth[3 + 2 * 255]; size_t a = 0;
+        auth[a++] = 0x01;
+        auth[a++] = (unsigned char)clen; memcpy(auth + a, cred, clen); a += clen;
+        auth[a++] = (unsigned char)clen; memcpy(auth + a, cred, clen); a += clen;
+        unsigned char ok[2];
+        if (!sendAll(&_fd, auth, a) || !recvAll(&_fd, ok, 2) || ok[0] != 0x01 || ok[1] != 0x00) {
+            if (errorOut) *errorOut = @"SOCKS: auth refused"; return NO;
+        }
     }
 
     // CONNECT: VER, CMD=1, RSV, ATYP=3 (Domain), Länge, Host, Port

@@ -12,9 +12,12 @@
 #import "MeshProfile.h"
 #import "MeshImagePicker.h"
 
+@interface ProfileEditViewController () <MeshEmojiFieldDelegate>
+@end
+
 @implementation ProfileEditViewController {
-    UITextField *_name;
-    UITextField *_about;
+    MeshEmojiField *_name;    // freier Text: Emojis wie in den Blasen
+    MeshEmojiField *_about;
     MeshAvatarView *_avatar;   // zeigt das noch nicht gespeicherte Bild als Vorschau
     MeshProfile *_profile;  // wird bearbeitet, gespeichert erst mit "Speichern"
 }
@@ -55,11 +58,11 @@
     y += av + 26;
 
     y = [self addLabel:L(@"NAME") at:y width:W];
-    _name = [MeshControls fieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"e.g. Anna") mono:NO delegate:self];
+    _name = [MeshControls textFieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"e.g. Anna") delegate:self];
     _name.text = _profile.name; [self.view addSubview:_name]; y += 62;
 
     y = [self addLabel:L(@"ABOUT") at:y width:W];
-    _about = [MeshControls fieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"Short description") mono:NO delegate:self];
+    _about = [MeshControls textFieldWithFrame:CGRectMake(16, y, W - 32, 46) placeholder:L(@"Short description") delegate:self];
     _about.text = _profile.about; [self.view addSubview:_about]; y += 62;
 }
 
@@ -91,7 +94,7 @@
     [[MeshSession shared] saveProfile:_profile];
     [self mesh_goBack];
 }
-- (BOOL)textFieldShouldReturn:(UITextField *)tf { [tf resignFirstResponder]; return NO; }
+- (void)emojiFieldReturned:(MeshEmojiField *)field { [field resignFirstResponder]; }
 
 // Unter iOS 4 sind Delegates unsafe_unretained, hier selbst lösen.
 - (void)dealloc { _name.delegate = nil; _about.delegate = nil; }

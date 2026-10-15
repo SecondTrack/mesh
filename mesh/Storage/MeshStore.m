@@ -56,9 +56,34 @@
     if (_key) _sealKey = [[MeshSealKey alloc] initWithKey:_key];
     if (knownSealed) _migrated = YES;   // gilt auch, wenn jemand user_version in der Datei zurücksetzt
     if (_key) [self migrateSeals];   // räumt danach per VACUUM auf; sonst ist nichts zu tun (secure_delete)
+    if (_key) [self migrateMetadata];   // Absender/Einladende (0.1.30); secure_delete überschreibt den Klartext
 }
 
 - (BOOL)sealed { return _migrated; }
+
+#pragma mark - Versiegelte Pubkeys
+
+static BOOL isPubkeyHex(NSString *s) {
+    if (s.length != 64) return NO;
+    for (NSUInteger i = 0; i < 64; i++) {
+        unichar c = [s characterAtIndex:i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return NO;
+    }
+    return YES;
+}
+
+// Nach migrateMetadata nur noch versiegelt (Klartext in der Datei = manipuliert, nicht anzeigen).
+- (NSString *)openPubkey:(NSString *)stored context:(NSString *)context {
+    if (!stored.length || !_key) return nil;
+    NSString *pk = [MeshSeal isSealed:stored] ? [MeshSeal open:stored sealKey:_sealKey context:context] : (self.metaSealed ? nil : stored);
+    return isPubkeyHex(pk) ? pk : nil;
+}
+
+- (NSString *)senderFrom:(NSString *)stored chat:(NSString *)chat eventId:(NSString *)eventId {
+    if (!stored.length) return nil;
+    if ([stored isEqualToString:MeshSenderAll] || [stored isEqualToString:MeshSenderApp]) return stored;
+    return [self openPubkey:stored context:senderContext(chat, eventId)];
+}
 
 // nil, wenn kein Schlüssel gesetzt ist, dann wird nicht geschrieben (nie Klartext).
 - (NSString *)seal:(NSString *)plain context:(NSString *)context {
@@ -124,7 +149,8 @@
 - (BOOL)destroyAndReopen {
     [self setDataKey:nil];
     sqlite3_exec(_db, "DELETE FROM vault; DELETE FROM signal; DELETE FROM message_blobs; DELETE FROM messages; DELETE FROM contacts;"
-                      "DELETE FROM outbox; DELETE FROM profile; DELETE FROM identity;", NULL, NULL, NULL);
+                      "DELETE FROM outbox; DELETE FROM profile; DELETE FROM identity; DELETE FROM groups; DELETE FROM group_invites;"
+                      "DELETE FROM team; DELETE FROM team_outbox; DELETE FROM fanout; DELETE FROM held_invites; DELETE FROM group_records;", NULL, NULL, NULL);
     sqlite3_close(_db); _db = NULL;
     NSFileManager *fm = [NSFileManager defaultManager];
     for (NSString *suffix in @[@"", @"-journal", @"-wal", @"-shm"]) {
@@ -389,14 +415,19 @@ static BOOL isMediaKind(int kind) { return kind == MeshPayloadImage || kind == M
     // Dateien gleich einordnen wie MeshSession isVideo: (-1 Video, -2 andere): Listen und Zeilenhöhen entschlüsseln nichts
     int width = kind == MeshPayloadFile && !m.width ? ([payload.fileMime isEqualToString:@"video/mp4"] ? -1 : -2) : m.width;
     int height = kind == MeshPayloadFile && !m.width ? 0 : m.height;
-    NSString *sealed = [self seal:content context:messageContext(chat, (int)kind, secs, m.fromMe, eventId)];
+    NSString *sender = m.sender.length ? m.sender : nil;
+    NSString *sealed = [self seal:content context:messageContext(chat, (int)kind, secs, m.fromMe, eventId, sender)];
     if (!sealed) return 0;
+    // Absender-Pubkey versiegelt (Team-Chat: 'all'/'app' bleiben, sie sagen nichts über Personen)
+    NSString *storedSender = !sender || [sender isEqualToString:MeshSenderAll] || [sender isEqualToString:MeshSenderApp]
+        ? sender : [self seal:sender context:senderContext(chat, eventId)];
+    if (sender && !storedSender) return 0;
     BOOL blob = isMediaKind((int)kind);
     // Zeile und Inhalt gemeinsam oder gar nicht (SAVEPOINT: auch innerhalb einer laufenden Transaktion)
     BOOL outer = sqlite3_get_autocommit(_db) != 0;   // keine Transaktion offen: der SAVEPOINT ist selbst eine
     if (blob && sqlite3_exec(_db, "SAVEPOINT msg", NULL, NULL, NULL) != SQLITE_OK) return 0;
     sqlite3_stmt *st = [self prepare:"INSERT OR IGNORE INTO messages(chat, from_me, content, ts, event_id, kind, secs, bytes,"
-                                      " status, cmid, reply_to, timer, expires, width, height) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"];
+                                      " status, cmid, reply_to, timer, expires, width, height, sender) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"];
     BOOL ok = st != NULL;
     if (st) {
         bindText(st, 1, chat);
@@ -414,6 +445,7 @@ static BOOL isMediaKind(int kind) { return kind == MeshPayloadImage || kind == M
         sqlite3_bind_int64(st, 13, m.expiresAt);
         sqlite3_bind_int (st, 14, width);
         sqlite3_bind_int (st, 15, height);
+        bindText(st, 16, storedSender);
         ok = sqlite3_step(st) == SQLITE_DONE && sqlite3_changes(_db) > 0;
         sqlite3_finalize(st);
     }
@@ -450,7 +482,8 @@ static BOOL isMediaKind(int kind) { return kind == MeshPayloadImage || kind == M
 }
 
 - (long long)newestReceivedTime {
-    sqlite3_stmt *st = [self prepare:"SELECT COALESCE(MAX(ts),0) FROM messages WHERE from_me=0"];
+    // Ohne den Team-Chat: der kommt über eigene Abos (Rundbriefe, anonyme Verbindung).
+    sqlite3_stmt *st = [self prepare:"SELECT COALESCE(MAX(ts),0) FROM messages WHERE from_me=0 AND chat != 'team'"];
     long long ts = (st && sqlite3_step(st) == SQLITE_ROW) ? sqlite3_column_int64(st, 0) : 0;
     sqlite3_finalize(st);
     return ts;
@@ -460,6 +493,12 @@ static BOOL isMediaKind(int kind) { return kind == MeshPayloadImage || kind == M
 - (BOOL)markDelivered:(NSString *)eventId {
     if (!eventId.length) return NO;
     [self run:"DELETE FROM outbox WHERE event_id=?" text:eventId];
+    return [self markMessageDelivered:eventId];
+}
+
+// Nur der Status (Gruppe: ein anderes Mitglied hat bestätigt; das eigene Event bleibt in der Warteschlange).
+- (BOOL)markMessageDelivered:(NSString *)eventId {
+    if (!eventId.length) return NO;
     BOOL changed = [self run:"UPDATE messages SET status=1 WHERE event_id=? AND status!=1" text:eventId] && sqlite3_changes(_db) > 0;
     // "Ab Gesehen": die Uhr einer eigenen Nachricht startet, sobald sie unterwegs ist.
     sqlite3_stmt *st = changed ? [self prepare:"UPDATE messages SET expires=?+timer WHERE event_id=? AND timer>0 AND expires=0"] : NULL;
@@ -492,16 +531,16 @@ static BOOL isMediaKind(int kind) { return kind == MeshPayloadImage || kind == M
 
 // Inhalt für Listen: Text entschlüsselt, Medien nur als Marker (die Daten holt contentOfMessage:).
 - (NSString *)listContentChat:(NSString *)chat kind:(int)kind secs:(int)secs fromMe:(BOOL)fromMe
-                       eventId:(NSString *)eventId stored:(NSString *)stored {
+                       eventId:(NSString *)eventId sender:(NSString *)sender stored:(NSString *)stored {
     NSString *marker = [MeshPayload markerForKind:kind seconds:secs];
-    return marker ?: [self open:stored context:messageContext(chat, kind, secs, fromMe, eventId)] ?: @"";
+    return marker ?: [self open:stored context:messageContext(chat, kind, secs, fromMe, eventId, sender)] ?: @"";
 }
 
 // Spalten für MeshMessage, in der Reihenfolge von messageFromRow.
 // Ganz geladen werden nur kleine Arten (Text, Hinweis, Kontaktkarte); die Zahlen sind MeshPayloadKind.
-_Static_assert(MeshPayloadText == 0 && MeshPayloadNotice == 4 && MeshPayloadContact == 5, "kind IN (0,4,5) anpassen");
-#define MESSAGE_COLUMNS "kind, secs, CASE WHEN kind IN (0,4,5) THEN content END, from_me, ts, event_id, status, rowid, " \
-                        "width, height, cmid, reply_to, react_mine, react_peer, timer, expires"
+_Static_assert(MeshPayloadText == 0 && MeshPayloadNotice == 4 && MeshPayloadContact == 5 && MeshPayloadGroupLink == 6, "kind IN (0,4,5,6) anpassen");
+#define MESSAGE_COLUMNS "kind, secs, CASE WHEN kind IN (0,4,5,6) THEN content END, from_me, ts, event_id, status, rowid, " \
+                        "width, height, cmid, reply_to, react_mine, react_peer, timer, expires, sender"
 
 - (MeshMessage *)messageFromRow:(sqlite3_stmt *)st chat:(NSString *)chat {
     MeshMessage *m = [[MeshMessage alloc] init];
@@ -509,8 +548,9 @@ _Static_assert(MeshPayloadText == 0 && MeshPayloadNotice == 4 && MeshPayloadCont
     m.fromMe  = sqlite3_column_int(st, 3) != 0;
     m.ts      = sqlite3_column_int64(st, 4);
     m.eventId = columnText(st, 5);
+    m.sender  = [self senderFrom:columnText(st, 16) chat:chat eventId:m.eventId];
     m.content = [self listContentChat:chat kind:(int)m.kind secs:sqlite3_column_int(st, 1)
-                               fromMe:m.fromMe eventId:m.eventId stored:columnText(st, 2)];
+                               fromMe:m.fromMe eventId:m.eventId sender:m.sender stored:columnText(st, 2)];
     m.status  = sqlite3_column_int(st, 6);
     m.rowId   = sqlite3_column_int64(st, 7);
     m.width   = sqlite3_column_int(st, 8);
@@ -601,9 +641,9 @@ _Static_assert(MeshPayloadText == 0 && MeshPayloadNotice == 4 && MeshPayloadCont
 }
 
 // Schlanke Zeilen für Galerie und Vollbild: ohne Reaktionen (nichts zu entschlüsseln), Inhalt nur als Marker.
-#define MEDIA_COLUMNS "kind, secs, from_me, ts, event_id, status, rowid, width, height, cmid, reply_to, timer, expires"
+#define MEDIA_COLUMNS "kind, secs, from_me, ts, event_id, status, rowid, width, height, cmid, reply_to, timer, expires, sender"
 
-static MeshMessage *mediaFromRow(sqlite3_stmt *st) {
+- (MeshMessage *)mediaFromRow:(sqlite3_stmt *)st chat:(NSString *)chat {
     MeshMessage *m = [[MeshMessage alloc] init];
     m.kind    = sqlite3_column_int(st, 0);
     m.content = [MeshPayload markerForKind:(int)m.kind seconds:sqlite3_column_int(st, 1)] ?: @"";
@@ -618,6 +658,7 @@ static MeshMessage *mediaFromRow(sqlite3_stmt *st) {
     m.replyTo = columnText(st, 10);
     m.timer   = sqlite3_column_int(st, 11);
     m.expiresAt = sqlite3_column_int64(st, 12);
+    m.sender  = [self senderFrom:columnText(st, 13) chat:chat eventId:m.eventId];
     return m;
 }
 
@@ -626,7 +667,7 @@ static MeshMessage *mediaFromRow(sqlite3_stmt *st) {
     sqlite3_stmt *st = [self prepare:sql];
     if (!st) return out;
     bindText(st, 1, chat);
-    while (sqlite3_step(st) == SQLITE_ROW) [out addObject:mediaFromRow(st)];
+    while (sqlite3_step(st) == SQLITE_ROW) [out addObject:[self mediaFromRow:st chat:chat]];
     sqlite3_finalize(st);
     return out;
 }
@@ -666,13 +707,17 @@ _Static_assert(MeshPayloadImage == 1 && MeshPayloadFile == 3, "kind=1 / kind=3 a
 - (NSString *)contentOfMessage:(long long)rowId {
     // Medien aus message_blobs; ältere (noch nicht umgezogene) Zeilen aus messages.content
     sqlite3_stmt *st = [self prepare:"SELECT COALESCE((SELECT b.content FROM message_blobs b WHERE b.rowid=m.rowid), m.content), "
-                                     "chat, kind, secs, from_me, event_id FROM messages m WHERE rowid=?"];
+                                     "chat, kind, secs, from_me, event_id, sender FROM messages m WHERE rowid=?"];
     NSString *out = nil;
     if (!st) return nil;
     sqlite3_bind_int64(st, 1, rowId);
-    if (sqlite3_step(st) == SQLITE_ROW)
-        out = [self open:columnText(st, 0) context:messageContext(columnText(st, 1), sqlite3_column_int(st, 2), sqlite3_column_int(st, 3),
-                                                                  sqlite3_column_int(st, 4) != 0, columnText(st, 5))];
+    if (sqlite3_step(st) == SQLITE_ROW) {
+        NSString *chat = columnText(st, 1), *eventId = columnText(st, 5), *stored = columnText(st, 6);
+        NSString *sender = [self senderFrom:stored chat:chat eventId:eventId];
+        if (!stored.length || sender)   // Absender nicht lesbar: der Inhalt öffnet ohnehin nicht
+            out = [self open:columnText(st, 0) context:messageContext(chat, sqlite3_column_int(st, 2), sqlite3_column_int(st, 3),
+                                                                      sqlite3_column_int(st, 4) != 0, eventId, sender)];
+    }
     sqlite3_finalize(st);
     return out;
 }
@@ -682,8 +727,8 @@ _Static_assert(MeshPayloadImage == 1 && MeshPayloadFile == 3, "kind=1 / kind=3 a
     // Letzte Nachricht je Chat; Medien nur als Marker.
     // accepted aus dem Index (Unterabfrage), Name und Profilname stehen vor pic
 #define CHAT_LIST(INDEX) \
-        "SELECT m.chat, m.kind, m.secs, CASE WHEN m.kind IN (0,4,5) THEN m.content END, m.from_me, m.ts, m.event_id, " \
-        "       c.name, c.pname, COALESCE((SELECT a.accepted FROM contacts a" INDEX "WHERE a.pubkey=m.chat), 0) FROM messages m " \
+        "SELECT m.chat, m.kind, m.secs, CASE WHEN m.kind IN (0,4,5,6) THEN m.content END, m.from_me, m.ts, m.event_id, " \
+        "       c.name, c.pname, COALESCE((SELECT a.accepted FROM contacts a" INDEX "WHERE a.pubkey=m.chat), 0), m.sender FROM messages m " \
         "JOIN (SELECT chat, MAX(ts) mts FROM messages GROUP BY chat) x ON m.chat=x.chat AND m.ts=x.mts " \
         "LEFT JOIN contacts c ON c.pubkey=m.chat " \
         "GROUP BY m.chat ORDER BY m.ts DESC"
@@ -692,8 +737,9 @@ _Static_assert(MeshPayloadImage == 1 && MeshPayloadFile == 3, "kind=1 / kind=3 a
         MeshChat *chat = [[MeshChat alloc] init];
         chat.pubkey = columnText(st, 0) ?: @"";
         chat.fromMe = sqlite3_column_int(st, 4) != 0;
+        chat.sender = [self senderFrom:columnText(st, 10) chat:chat.pubkey eventId:columnText(st, 6)];
         NSString *c = [self listContentChat:chat.pubkey kind:sqlite3_column_int(st, 1) secs:sqlite3_column_int(st, 2)
-                                     fromMe:chat.fromMe eventId:columnText(st, 6) stored:columnText(st, 3)];
+                                     fromMe:chat.fromMe eventId:columnText(st, 6) sender:chat.sender stored:columnText(st, 3)];
         chat.lastContent = MeshTruncate(c, 200);
         chat.ts     = sqlite3_column_int64(st, 5);
         chat.ownName = [self open:columnText(st, 7) context:contactContext("name", chat.pubkey)];

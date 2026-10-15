@@ -1,4 +1,5 @@
 #import "MeshMessenger.h"
+#import "MeshMessenger+Internal.h"
 #import "MeshStore.h"
 #import "MeshStore+Chat.h"
 #import "MeshInboxPolicy.h"
@@ -65,6 +66,11 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
     NSMutableDictionary *_pictureTs;   // Kontakt -> created_at des zuletzt übernommenen Bildes
     NSMutableSet *_pictureReplied;     // wem schon einmal als Antwort das eigene Bild ging (kein Ping-Pong)
     NSMutableDictionary *_dmKeys;      // Kontakt -> @[ECDH-Geheimnis (NIP-04), Gesprächsschlüssel (NIP-44)], nur RAM
+    NSMutableDictionary *_pendingGroupPictures;   // gid -> Bildbytes vor dem passenden Zustand (B7), nur RAM
+    NSMutableDictionary *_pendingGroupEvents;     // gid -> Gruppen-Events vor dem passenden Zustand (B8.4), nur RAM
+    NSMutableArray *_fanoutJobs;                  // Gruppennachrichten, deren Kopien noch nicht alle gebaut sind
+    NSMutableDictionary *_heldGroupControl;       // gid -> wartender Zustand/gl/gk (B9/B10), nur RAM
+    BOOL _fanoutScheduled;
 }
 
 - (instancetype)initWithStore:(MeshStore *)store keys:(MeshKeys *)keys inbox:(MeshInboxPolicy *)inbox panic:(MeshPanic *)panic {
@@ -74,13 +80,51 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
         _pictureTs = [NSMutableDictionary dictionary];
         _pictureReplied = [NSMutableSet set];
         _dmKeys = [NSMutableDictionary dictionary];
+        _pendingGroupPictures = [NSMutableDictionary dictionary];
+        _pendingGroupEvents = [NSMutableDictionary dictionary];
+        _fanoutJobs = [NSMutableArray array];
+        _heldGroupControl = [NSMutableDictionary dictionary];
     }
     return self;
 }
 
 - (void)dealloc { [self wipeKeys]; }
 
+- (MeshStore *)store { return _store; }
+- (NSMutableDictionary *)pendingGroupPictures { return _pendingGroupPictures; }
+- (NSMutableDictionary *)pendingGroupEvents { return _pendingGroupEvents; }
+- (NSMutableArray *)fanoutJobs { return _fanoutJobs; }
+- (NSMutableDictionary *)heldGroupControl { return _heldGroupControl; }
+- (MeshKeys *)keys { return _keys; }
+
+// Fan-out schrittweise (B8.3): je Runloop-Durchgang eine Kopie, damit nie alle Kopien einer Gruppen-
+// nachricht (bis 19 × ~0,7 MB) gleichzeitig im Speicher und in den Relay-Warteschlangen liegen.
+- (void)scheduleFanout {
+    if (_fanoutScheduled || !_fanoutJobs.count) return;
+    _fanoutScheduled = YES;
+    [self performSelector:@selector(fanoutTick) withObject:nil afterDelay:0 inModes:@[NSRunLoopCommonModes]];
+}
+
+- (void)fanoutTick {
+    _fanoutScheduled = NO;
+    @autoreleasepool { [self fanoutStep]; }
+    [self scheduleFanout];
+}
+
+// Alles Ausstehende jetzt bauen (vor dem Sperren, solange Schlüssel und Store offen sind), je Kopie ein Pool.
+- (void)finishPendingSends {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(fanoutTick) object:nil];
+    _fanoutScheduled = NO;
+    while (_fanoutJobs.count) @autoreleasepool { [self fanoutStep]; }
+}
+
 - (void)wipeKeys {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(fanoutTick) object:nil];
+    _fanoutScheduled = NO;
+    [_fanoutJobs removeAllObjects];             // MeshIdentity lock hat sie vorher mit finishPendingSends gebaut
+    [_pendingGroupEvents removeAllObjects];     // gepufferte Gruppen-Events (B8.4) nicht über das Sperren hinaus
+    [_pendingGroupPictures removeAllObjects];   // wartende Gruppenbilder nicht über das Sperren hinaus
+    [_heldGroupControl removeAllObjects];       // wartende Übergaben, gl, gk (B9/B10)
     for (NSArray *k in [_dmKeys allValues]) for (NSData *d in k) MeshWipe(d);
     [_dmKeys removeAllObjects];
 }
@@ -192,6 +236,7 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
     if (![_store isAccepted:peer]) {   // wer antwortet, nimmt den Kontakt an
         [_store upsertContact:peer name:@"" accepted:YES];
         [self.delegate messenger:self acceptedContact:peer];
+        [self contactAccepted:peer];   // B8.5: zurückgehaltene Einladungen jetzt zeigen
     }
     if (![_store insertMessage:m chat:peer content:content]) return nil;
     [self.delegate messenger:self send:e];
@@ -287,11 +332,16 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
 
 - (void)chatOpened:(NSString *)peer { [_store startTimersInChat:peer now:MeshNow()]; }
 
-- (BOOL)deleteExpired { return [_store deleteExpiredAt:MeshNow()] > 0; }
+- (BOOL)deleteExpired {
+    BOOL groups = [self processGroupDeadlines];   // B9: gl des Admins ohne Übergabe = aufgelöst
+    return [_store deleteExpiredAt:MeshNow()] > 0 || groups;
+}
 
 - (NSTimeInterval)secondsUntilNextExpiry {
     long long next = [_store nextExpiry];
-    return next ? MAX(0, next - MeshNow()) : -1;
+    NSTimeInterval messages = next ? MAX(0, next - MeshNow()) : -1, groups = [self secondsUntilGroupDeadline];
+    if (messages < 0) return groups;
+    return groups < 0 ? messages : MIN(messages, groups);
 }
 
 #pragma mark - Empfangen
@@ -310,6 +360,10 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
     NSString *plain = [self decrypt:event.content from:peer];
     if (!plain) { [self discard:event]; return NO; }   // sonst rechnet jedes Neuverbinden es wieder durch
     MeshEnvelope *env = [MeshEnvelope parse:plain];
+    // Anonyme Team-Nachrichten gibt es nur über die getrennte Verbindung (MeshTeam), nie hier.
+    if (env.anon) { [self discard:event]; return NO; }
+    // Gruppen: eigene Regeln (Mitglied statt Kontakt, nie Bundle, nie Panik), siehe MeshMessenger+Groups.
+    if (env.group || env.type == MeshEnvelopeGroupInvite || env.type == MeshEnvelopeGroupState) return [self receiveGroup:env event:event];
     if (env.type == MeshEnvelopeMessage) return [self receiveMessage:env event:event];
 
     // Steueranweisungen nur von bekannten Kontakten; einmal angewendet, nie wieder.
@@ -340,6 +394,14 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
             return NO;              // keine Nachricht; die Oberfläche erfährt es über den Delegate
         case MeshEnvelopeHello:
         case MeshEnvelopeFileChunk:   // nur über die .onion der Android-App, nie über Relays
+        case MeshEnvelopeGroupInvite: // Gruppen gehen oben ab
+        case MeshEnvelopeGroupJoin:
+        case MeshEnvelopeGroupState:
+        case MeshEnvelopeGroupLeave:
+        case MeshEnvelopeGroupPicture:
+        case MeshEnvelopeGroupPropose:
+        case MeshEnvelopeGroupVouch:
+        case MeshEnvelopeGroupKey:
         case MeshEnvelopeIgnored:
             [self discard:event];
             return NO;
@@ -349,8 +411,10 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
 
 // Nicht lesbar oder nichts anzuzeigen: als erledigt merken (begrenzt), damit Relays es nicht bei
 // jeder Verbindung erneut einspielen und Entschlüsseln erzwingen.
-- (void)discard:(MeshEvent *)event {
-    [_store rememberProcessed:event.eventId];
+- (void)discard:(MeshEvent *)event { [self discardId:event.eventId]; }
+
+- (void)discardId:(NSString *)eventId {
+    [_store rememberProcessed:eventId];
     [_store pruneTombstonesKeeping:MeshMaxTombstones];
 }
 
@@ -358,6 +422,7 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
     NSString *content = env.content;
     MeshPayloadKind kind = [MeshPayload kindOf:content];
     if (content.length > maxContentLength(kind)) { [self discard:event]; return NO; }
+    if (kind == MeshPayloadGroupLink && ![self isValidGroupLinkCard:content]) { [self discard:event]; return NO; }   // B10
     long long bytes = (long long)[content lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
     // Fremde landen als nicht angenommene Kontakte: Bilder und Profil erst nach Bestätigung.
     if (![_inbox admitFrom:event.pubkey eventId:event.eventId bytes:bytes]) return NO;

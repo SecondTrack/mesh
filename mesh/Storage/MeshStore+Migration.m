@@ -49,7 +49,35 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
         "CREATE TRIGGER IF NOT EXISTS messages_blob_delete AFTER DELETE ON messages "
         "  BEGIN DELETE FROM message_blobs WHERE rowid=old.rowid; END;"
         // Stand einmaliger Umstellungen (moveMediaStep).
-        "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value INTEGER NOT NULL);";
+        "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value INTEGER NOT NULL);"
+        // Gruppen (ab 0.1.27): Zustand-JSON versiegelt, eigener Stand (MeshGroupStatus), wer eingeladen hat.
+        "CREATE TABLE IF NOT EXISTS groups(gid TEXT PRIMARY KEY, status INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL,"
+        "  inviter TEXT, created INTEGER NOT NULL DEFAULT 0);"
+        // Offene Einladungen des Admins (nach 30 Tagen vergessen).
+        "CREATE TABLE IF NOT EXISTS group_invites(gid TEXT NOT NULL, pubkey TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(gid, pubkey));"
+        // Team-Chat: Einweg-Schlüssel E (versiegelt), Rundbriefe bis (since), erster Start, Schalter.
+        "CREATE TABLE IF NOT EXISTS team(id INTEGER PRIMARY KEY CHECK(id=1), ekey TEXT, used INTEGER NOT NULL DEFAULT 0,"
+        "  since INTEGER NOT NULL DEFAULT 0, started INTEGER NOT NULL DEFAULT 0, hidden INTEGER NOT NULL DEFAULT 0,"
+        "  muted INTEGER NOT NULL DEFAULT 0);"
+        // Warteschlange der anonymen Verbindung: nie über die der echten Identität (outbox) senden.
+        "CREATE TABLE IF NOT EXISTS team_outbox(event_id TEXT PRIMARY KEY, event TEXT NOT NULL, created INTEGER NOT NULL);"
+        // Gruppen-Fan-out (ab 0.1.30): jede Kopie einer Gruppennachricht (Event-ID je Mitglied) -> Nachricht.
+        "CREATE TABLE IF NOT EXISTS fanout(event_id TEXT PRIMARY KEY, message_rowid INTEGER NOT NULL);"
+        "CREATE INDEX IF NOT EXISTS idx_fanout_msg ON fanout(message_rowid);"
+        // Einladungen von noch nicht angenommenen Absendern (B8.5): versiegelt, höchstens 30 Tage / 20 Stück.
+        "CREATE TABLE IF NOT EXISTS held_invites(id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, data TEXT NOT NULL);"
+        // B9/B10 (ab 0.1.33): Vorschläge (Admin), Bürgschaften, Link-Beitritte und Entfernte je Stunde/Tag (Admin),
+        // aufgeschobene Sendungen (gl erst nach Zustellung der Übergabe). data versiegelt an Art und gid.
+        "CREATE TABLE IF NOT EXISTS group_records(id INTEGER PRIMARY KEY AUTOINCREMENT, kind INTEGER NOT NULL, gid TEXT,"
+        "  at INTEGER NOT NULL, data TEXT NOT NULL);"
+        "CREATE INDEX IF NOT EXISTS idx_group_records ON group_records(kind, gid, at);"
+        // Gelöschte Nachricht (jeder Weg: einzeln, Leeren, Ablauf, Gruppe/Kontakt löschen): ihr Event und alle
+        // Fan-out-Kopien verlassen die Warteschlangen, auch die anonyme des Team-Chats. Nichts geht mehr hinaus.
+        "CREATE TRIGGER IF NOT EXISTS messages_outbox_delete AFTER DELETE ON messages BEGIN "
+        "  DELETE FROM outbox WHERE event_id=old.event_id;"
+        "  DELETE FROM team_outbox WHERE event_id=old.event_id;"
+        "  DELETE FROM outbox WHERE event_id IN (SELECT event_id FROM fanout WHERE message_rowid=old.rowid);"
+        "  DELETE FROM fanout WHERE message_rowid=old.rowid; END;";
     if (sqlite3_exec(self.db, schema, NULL, NULL, NULL) != SQLITE_OK) return NO;
     // Spalten, die ältere Datenbanken noch nicht haben; fill läuft einmal direkt nach dem Anlegen.
     static const struct { const char *table, *column, *definition, *fill; } added[] = {
@@ -86,6 +114,13 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
         { "contacts", "about", "TEXT", NULL },
         // Bis wann der Chat gelesen ist (Unix-Sekunden): Trennlinie "Neue Nachrichten".
         { "chats", "read", "INTEGER NOT NULL DEFAULT 0", NULL },
+        // Absender in Gruppen bzw. Rundbrief/Begrüßung im Team-Chat (MeshMessage.sender); alte Zeilen NULL.
+        { "messages", "sender", "TEXT", NULL },
+        // Gruppenbild (B7): Base64 der Bildbytes, versiegelt an die gid; NULL = keins.
+        { "groups", "pic", "TEXT", NULL },
+        // B10: Link-Geheimnis k (versiegelt an die gid; Admin, bei Mitgliedern aus gk) und Beginn eines Link-Beitritts.
+        { "groups", "lkey", "TEXT", NULL },
+        { "groups", "link_at", "INTEGER NOT NULL DEFAULT 0", NULL },
     };
     for (size_t i = 0; i < sizeof(added) / sizeof(added[0]); i++) {
         if ([self table:added[i].table hasColumn:added[i].column]) continue;
@@ -104,6 +139,7 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
     sqlite3_stmt *v = [self prepare:"PRAGMA user_version"];
     self.migrated = v && sqlite3_step(v) == SQLITE_ROW && sqlite3_column_int(v, 0) >= MeshSchemaSealed;
     sqlite3_finalize(v);
+    self.metaSealed = [self metaValue:"meta_sealed"] != 0;
     return YES;
 }
 
@@ -165,7 +201,7 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
             : [self legacyPlain:stored];
         if (!plain) continue;   // manipuliert oder bereits aktuell (enc2 aus Schema 3 öffnet mit V2 nicht)
         MeshPayload *p = [MeshPayload parse:plain];
-        NSString *sealed = [self seal:plain context:messageContext(chat, (int)p.kind, p.seconds, sqlite3_column_int(sel, 5) != 0, eventId)];
+        NSString *sealed = [self seal:plain context:messageContext(chat, (int)p.kind, p.seconds, sqlite3_column_int(sel, 5) != 0, eventId, nil)];
         long long rowId = sqlite3_column_int64(sel, 0);
         if (sqlite3_column_int(sel, 7)) {   // Inhalt in message_blobs, Art und Länge in messages
             bindText(updBlob, 1, sealed);
@@ -216,11 +252,61 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
     sqlite3_exec(self.db, "VACUUM", NULL, NULL, NULL);   // Altes aus freien Seiten entfernen (bestmöglich)
 }
 
+#pragma mark - Metadaten versiegeln (0.1.30)
+
+// Wer wen eingeladen hat und wer in einer Gruppe was geschrieben hat, lag bis 0.1.29 im Klartext:
+// groups.inviter, group_invites.pubkey und messages.sender (Pubkeys). Einmalig beim Entsperren
+// versiegeln, in einer Transaktion; schlägt etwas fehl, bleibt alles wie es war (Lesen versteht dann
+// weiter Klartext) und es geht beim nächsten Entsperren erneut. team.used wird nicht mehr gebraucht: 0.
+- (void)migrateMetadata {
+    if ([self metaValue:"meta_sealed"]) { self.metaSealed = YES; return; }
+    BOOL ok = sqlite3_exec(self.db, "BEGIN", NULL, NULL, NULL) == SQLITE_OK;
+    // messages.sender: nur Pubkeys (Team-Chat: 'all'/'app' sind keine Metadaten über Personen)
+    sqlite3_stmt *sel = ok ? [self prepare:"SELECT rowid, chat, event_id, sender FROM messages WHERE sender IS NOT NULL "
+                                           "AND sender NOT IN ('all','app') AND substr(sender,1,5) != 'enc2:'"] : NULL;
+    sqlite3_stmt *upd = ok ? [self prepare:"UPDATE messages SET sender=? WHERE rowid=?"] : NULL;
+    ok = ok && sel && upd;
+    while (ok && sqlite3_step(sel) == SQLITE_ROW) {
+        NSString *sealed = [self seal:columnText(sel, 3) context:senderContext(columnText(sel, 1), columnText(sel, 2))];
+        bindText(upd, 1, sealed);
+        sqlite3_bind_int64(upd, 2, sqlite3_column_int64(sel, 0));
+        ok = sealed && sqlite3_step(upd) == SQLITE_DONE;
+        sqlite3_reset(upd);
+    }
+    sqlite3_finalize(sel); sqlite3_finalize(upd);
+    // groups.inviter
+    sel = ok ? [self prepare:"SELECT gid, inviter FROM groups WHERE inviter IS NOT NULL AND inviter != '' AND substr(inviter,1,5) != 'enc2:'"] : NULL;
+    upd = ok ? [self prepare:"UPDATE groups SET inviter=? WHERE gid=?"] : NULL;
+    ok = ok && sel && upd;
+    while (ok && sqlite3_step(sel) == SQLITE_ROW) {
+        NSString *gid = columnText(sel, 0), *sealed = [self seal:columnText(sel, 1) context:inviterContext(gid)];
+        bindText(upd, 1, sealed); bindText(upd, 2, gid);
+        ok = sealed && sqlite3_step(upd) == SQLITE_DONE;
+        sqlite3_reset(upd);
+    }
+    sqlite3_finalize(sel); sqlite3_finalize(upd);
+    // group_invites.pubkey
+    sel = ok ? [self prepare:"SELECT rowid, gid, pubkey FROM group_invites WHERE substr(pubkey,1,5) != 'enc2:'"] : NULL;
+    upd = ok ? [self prepare:"UPDATE group_invites SET pubkey=? WHERE rowid=?"] : NULL;
+    ok = ok && sel && upd;
+    while (ok && sqlite3_step(sel) == SQLITE_ROW) {
+        NSString *sealed = [self seal:columnText(sel, 2) context:inviteeContext(columnText(sel, 1))];
+        bindText(upd, 1, sealed);
+        sqlite3_bind_int64(upd, 2, sqlite3_column_int64(sel, 0));
+        ok = sealed && sqlite3_step(upd) == SQLITE_DONE;
+        sqlite3_reset(upd);
+    }
+    sqlite3_finalize(sel); sqlite3_finalize(upd);
+    ok = ok && sqlite3_exec(self.db, "UPDATE team SET used=0", NULL, NULL, NULL) == SQLITE_OK && [self setMeta:"meta_sealed" value:1];
+    if (ok && sqlite3_exec(self.db, "COMMIT", NULL, NULL, NULL) == SQLITE_OK) { self.metaSealed = YES; return; }
+    sqlite3_exec(self.db, "ROLLBACK", NULL, NULL, NULL);
+}
+
 @end
 
 @implementation MeshStore (MediaMove)
 
-// Ein Schritt: die nächsten Zeilen nach rowid (bis ~64 KB Medien oder 20 Zeilen) lesen, die
+// Ein Schritt: die nächsten Zeilen nach rowid (bis ~64 KB Medien oder 20 Zeilen, mindestens eine) lesen, die
 // Medieninhalte unverändert (versiegelt, gleicher Kontext) nach message_blobs kopieren und erst
 // danach messages.content leeren, alles in einer Transaktion samt Fortschritt. Wird die App
 // mittendrin beendet, rollt sqlite den Schritt zurück: die Zeilen stehen dann noch vollständig in
@@ -233,6 +319,7 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
     if (!sel) return NO;
     sqlite3_bind_int64(sel, 1, from);
     NSUInteger bytes = 0, seen = 0;
+    // Klein: läuft auf dem Main-Thread, größere Schritte ließen den A4 nach dem Update minutenlang ruckeln.
     while (bytes < 64 * 1024 && seen < 20 && sqlite3_step(sel) == SQLITE_ROW) {
         seen++;
         last = sqlite3_column_int64(sel, 0);

@@ -27,6 +27,9 @@
 #import "MeshJSON.h"
 #import "MeshText.h"
 #import "MeshTime.h"
+#import "MeshTeam.h"
+#import "MeshChat.h"
+#import "MeshStore+Group.h"
 
 // Öffentliche Start-Relays; Mesh betreibt keinen eigenen Server.
 // Mehrere Relays für Redundanz (doppelte Events über die event_id erkannt). Nur Relays ohne
@@ -45,8 +48,10 @@ static const long long kSyncOverlap = 3 * 24 * 3600;              // DMs ab so l
 static const NSUInteger kRequestProfiles = 30;                     // Namen so vieler Anfragen abfragen
 static const long long kOutboxLifetime = 7 * 24 * 3600;           // so lange wird unbestätigt erneut gesendet
 static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
+static const NSTimeInterval kMediaMovePause = 1.5;   // zwischen zwei Umzugsschritten
+static const NSTimeInterval kMediaMoveIdle = 2;      // so lange nach der letzten Berührung kein Schritt
 
-@interface MeshSession () <MeshRelayPoolDelegate, MeshInboxWatcherDelegate>
+@interface MeshSession () <MeshRelayPoolDelegate, MeshInboxWatcherDelegate, MeshTeamDelegate>
 @end
 
 @implementation MeshSession {
@@ -56,6 +61,7 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
     MeshInboxWatcher *_watcher;    // nur gesperrt im Hintergrund
     NSSet *_profileAuthors;        // wessen Profile das Abo gerade anfragt
     BOOL _changePending;           // MeshMessagesChangedNotification steht schon an
+    NSTimeInterval _lastInteraction;   // letzte Berührung (userDidInteract), für den Medien-Umzug
 }
 
 + (instancetype)shared {
@@ -91,6 +97,7 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 - (void)goOnline {
     [self stopWatching];   // ab jetzt empfängt der Messenger selbst
     _active.messenger.openChat = _openChat;
+    for (MeshIdentity *i in [self unlockedIdentities]) [self startTeamOf:i];
     [self expireMessages];
     [_pool start];   // erst jetzt verbinden: der Abo-Filter braucht die eigenen Pubkeys
     [self scheduleMediaMove:5];   // nach dem Entsperren erst die Oberfläche, dann im Leerlauf umziehen
@@ -103,11 +110,17 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
     [self performSelector:@selector(moveMediaStep) withObject:nil afterDelay:delay inModes:@[NSDefaultRunLoopMode]];
 }
 
+// Nie direkt nach einer Berührung (Tippen, Scrollen, Chat öffnen): dann erst später. Die Oberfläche
+// geht vor, der Umzug darf ruhig länger dauern.
 - (void)moveMediaStep {
     if (!_unlocked) return;
+    NSTimeInterval idle = [NSDate timeIntervalSinceReferenceDate] - _lastInteraction;
+    if (idle < kMediaMoveIdle) { [self scheduleMediaMove:kMediaMoveIdle - idle + 0.1]; return; }
     for (MeshIdentity *i in [self unlockedIdentities])
-        if ([i.store moveMediaStep]) { [self scheduleMediaMove:1.5]; return; }   // eine Identität nach der anderen; kleine Schritte mit Pausen, damit die Oberfläche flüssig bleibt
+        if ([i.store moveMediaStep]) { [self scheduleMediaMove:kMediaMovePause]; return; }   // eine Identität nach der anderen
 }
+
+- (void)userDidInteract { _lastInteraction = [NSDate timeIntervalSinceReferenceDate]; }
 
 - (void)lock {
     [self notify:MeshWillLockNotification];   // Popups, Bildanzeigen, Caches, Aufnahmen schließen
@@ -116,6 +129,12 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
     for (MeshIdentity *i in _allIdentities) [i lock];   // Schlüssel überschreiben, Datenbanken versiegeln
     [_expiryTimer invalidate]; _expiryTimer = nil;
     [_pool stop];                  // keine offenen Verbindungen im gesperrten Zustand
+}
+
+// Team-Chat einer entsperrten Identität: Begrüßung, E laden, ggf. die getrennte Verbindung.
+- (void)startTeamOf:(MeshIdentity *)identity {
+    identity.team.delegate = self;
+    [identity.team startWithRelays:MeshDefaultRelays()];
 }
 
 - (void)messengerReceivedPanic:(MeshMessenger *)messenger {
@@ -198,6 +217,7 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
     identity.vault.deviceSecret = _active.vault.deviceSecret;
     if (![identity.vault storeKeys:k secret:[self normalized:pin kind:[self secretKind]] kdf:_active.vault.kdf]) { [identity destroy]; return NO; }
     [identity unlockWithKeys:k panic:_panic delegate:self];
+    [self startTeamOf:identity];
     [_allIdentities addObject:identity];
     [MeshIdentity saveSlots:[_allIdentities valueForKey:@"slot"] active:_active.slot];
     [self switchToIdentity:slot];
@@ -263,6 +283,7 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 #pragma mark - Selbstlöschen
 
 - (void)setOpenChat:(NSString *)peerHex {
+    [self userDidInteract];   // Chat öffnen/schließen: Umzugsschritte warten
     _openChat = [peerHex copy];
     _active.messenger.openChat = _openChat;
     if (!peerHex) return;
@@ -331,11 +352,31 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 - (void)messenger:(MeshMessenger *)messenger received:(MeshMessage *)message from:(NSString *)peer {
     MeshIdentity *identity = [self identityOf:messenger];
     if (identity == _active && [peer isEqualToString:_openChat]) return;
-    if (![identity.store isAccepted:peer]) return;   // Anfragen von Fremden ohne Hinweis
+    BOOL group = MeshGroupOfChat(peer) != nil;   // Gruppen: nur Mitglieder kommen hier an
+    if (!group && ![identity.store isAccepted:peer]) return;   // Anfragen von Fremden ohne Hinweis
     NSString *name = identity == _active ? [self displayNameFor:peer] : nil;
     NSString *preview = message.kind == MeshPayloadText ? message.content : nil;
+    if (group && name && preview && message.sender) preview = [NSString stringWithFormat:@"%@: %@", [self senderName:message.sender inChat:peer], preview];
     [[NSNotificationCenter defaultCenter] postNotificationName:MeshIncomingMessageNotification object:nil
         userInfo:@{ MeshIncomingName: name ?: @"", MeshIncomingPreview: preview ?: @"", MeshIncomingKind: @(message.kind) }];
+}
+
+#pragma mark - MeshTeamDelegate
+
+- (MeshIdentity *)identityOfTeam:(MeshTeam *)team {
+    for (MeshIdentity *i in _allIdentities) if (i.team == team) return i;
+    return nil;
+}
+
+- (void)teamChanged:(MeshTeam *)team { [self messagesChanged]; }
+
+// Hinweis wie bei normalen Chats, außer stumm geschaltet, ausgeblendet oder offen.
+- (void)team:(MeshTeam *)team received:(MeshMessage *)message {
+    MeshIdentity *identity = [self identityOfTeam:team];
+    [self messagesChanged];
+    if (team.muted || team.hidden || (identity == _active && MeshIsTeamChat(_openChat))) return;
+    [[NSNotificationCenter defaultCenter] postNotificationName:MeshIncomingMessageNotification object:nil
+        userInfo:@{ MeshIncomingName: identity == _active ? @"Mesh Team" : @"", MeshIncomingPreview: message.content ?: @"", MeshIncomingKind: @(MeshPayloadText) }];
 }
 
 #pragma mark - MeshRelayPoolDelegate
@@ -375,12 +416,20 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 }
 
 // Was nach Ablauf der Frist noch unbestätigt ist, gilt als nicht zugestellt.
-- (NSArray *)pendingEventsForPool:(MeshRelayPool *)pool {
+- (NSArray *)pendingEventsForPool:(MeshRelayPool *)pool { return [self pendingEventsForPool:pool excluding:nil]; }
+
+// Je Verbindung höchstens MeshOutboxMaxBytes für alle Identitäten zusammen (nicht 50 Medien-Events auf
+// einmal: der A4 hat 256 MB); ohne das, was diese Verbindung schon bekommen hat. Der Rest folgt, sobald
+// das Relay seine Warteschlange abgearbeitet hat (MeshRelayPool fragt dann erneut).
+- (NSArray *)pendingEventsForPool:(MeshRelayPool *)pool excluding:(NSSet *)eventIds {
     long long now = MeshNow();
     NSMutableArray *events = [NSMutableArray array];
+    NSUInteger budget = MeshOutboxMaxBytes;
     for (MeshIdentity *i in [self unlockedIdentities]) {
+        if (!budget) break;
         if ([i.store expireQueuedBefore:now - kOutboxLifetime]) [self notify:MeshMessagesChangedNotification];
-        for (NSString *json in [i.store queuedEvents]) {
+        for (NSString *json in [i.store queuedEventsExcluding:eventIds maxBytes:budget]) @autoreleasepool {
+            budget = json.length >= budget ? 0 : budget - json.length;
             MeshEvent *e = [MeshEvent fromJSONObject:[MeshJSON objectWithData:[json dataUsingEncoding:NSUTF8StringEncoding]]];
             if (e) [events addObject:e];
         }
@@ -443,7 +492,11 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 
 - (void)pool:(MeshRelayPool *)pool didStoreEvent:(NSString *)eventId {
     BOOL changed = NO;
-    for (MeshIdentity *i in [self unlockedIdentities]) changed |= [i.store markDelivered:eventId];   // kann "Ab Gesehen"-Uhren starten
+    for (MeshIdentity *i in [self unlockedIdentities]) {
+        changed |= [i.store markDelivered:eventId];          // kann "Ab Gesehen"-Uhren starten
+        changed |= [i.store markFanoutDelivered:eventId];    // Gruppe: irgendeine Kopie angekommen = zwei Haken
+        [i.messenger eventStored:eventId];                   // B9: gl nach bestätigter Übergabe
+    }
     if (changed) [self messagesChanged];
 }
 

@@ -1,4 +1,5 @@
 #import "PeerProfileViewController.h"
+#import "MeshEmoji.h"
 #import "MeshScreen.h"
 #import "MeshAvatarView.h"
 #import "MeshTheme.h"
@@ -53,7 +54,7 @@ static const CGFloat kMargin = 16, kGap = 12, kAvatar = 104, kRowHeight = 54, kB
     [sv addSubview:av];
     y += kAvatar + 14;
 
-    UILabel *name = [MeshControls labelWithFrame:CGRectMake(20, y, W - 40, 28) font:[MeshTheme titleFont] color:[MeshTheme ink]];
+    UILabel *name = [MeshControls userLabelWithFrame:CGRectMake(20, y, W - 40, 28) font:[MeshTheme titleFont] color:[MeshTheme ink]];
     name.text = [MeshFormat contactName:[[MeshSession shared] displayNameFor:_peerHex] accepted:[[MeshSession shared] isAccepted:_peerHex]];
     name.textAlignment = NSTextAlignmentCenter;
     [sv addSubview:name];
@@ -62,11 +63,11 @@ static const CGFloat kMargin = 16, kGap = 12, kAvatar = 104, kRowHeight = 54, kB
     // "Über mich" aus dem Profil (wie Android)
     NSString *about = MeshStripInvisible([[MeshSession shared] aboutFor:_peerHex] ?: @"");
     if (about.length) {
-        UILabel *a = [MeshControls labelWithFrame:CGRectZero font:[MeshTheme previewFont] color:[MeshTheme muted]];
+        UILabel *a = [MeshControls userLabelWithFrame:CGRectZero font:[MeshTheme previewFont] color:[MeshTheme muted]];
         a.text = about;
         a.numberOfLines = 0;
         a.textAlignment = NSTextAlignmentCenter;
-        CGSize sz = [about sizeWithFont:a.font constrainedToSize:CGSizeMake(W - 40, 200) lineBreakMode:NSLineBreakByWordWrapping];
+        CGSize sz = [MeshEmoji textSize:about font:a.font constrainedTo:CGSizeMake(W - 40, 200)];
         a.frame = CGRectMake(20, y - 6, W - 40, ceilf(sz.height));
         [sv addSubview:a];
         y += ceilf(sz.height) + 10;
@@ -76,7 +77,7 @@ static const CGFloat kMargin = 16, kGap = 12, kAvatar = 104, kRowHeight = 54, kB
     NSUInteger media = [MeshGalleryViewController countFor:_peerHex];
     if (media)
         y = [MeshMenuRow addTo:sv y:y width:W icon:@"gallery" title:L(@"Media")
-                      subtitle:LF(@"%lu photos and videos", (unsigned long)media) target:self action:@selector(openMedia)];
+                      subtitle:[MeshFormat media:media photosOnly:NO] target:self action:@selector(openMedia)];
     if ([[MeshSession shared] isAccepted:_peerHex])
         y = [MeshMenuRow addTo:sv y:y width:W icon:@"share" title:L(@"Share contact")
                       subtitle:L(@"Send this contact to someone else") target:self action:@selector(shareContact)];

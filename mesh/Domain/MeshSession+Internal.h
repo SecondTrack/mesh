@@ -28,3 +28,7 @@
 @interface MeshSession (PairingInternal)
 - (void)receivePairingEvent:(MeshEvent *)event subId:(NSString *)subId;   // in MeshSession+Pairing.m
 @end
+
+@interface MeshSession (ChatsInternal)
+- (BOOL)sendContent:(NSString *)content to:(NSString *)peerHex replyTo:(NSString *)replyTo;   // in MeshSession+Chats.m
+@end

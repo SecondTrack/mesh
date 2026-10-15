@@ -1,4 +1,5 @@
 #import "MeshBanner.h"
+#import "MeshEmojiLabel.h"
 #import "MeshTheme.h"
 #import "MeshNotifications.h"
 
@@ -28,11 +29,11 @@ static const NSTimeInterval kShown = 3;
     b.layer.cornerRadius = 14;
     b.layer.borderWidth = 0.5f;
     b.layer.borderColor = [MeshTheme line].CGColor;
-    UILabel *t = [[UILabel alloc] initWithFrame:CGRectMake(14, 8, b.bounds.size.width - 28, 20)];
+    UILabel *t = [[MeshEmojiLabel alloc] initWithFrame:CGRectMake(14, 8, b.bounds.size.width - 28, 20)];
     t.font = [MeshTheme labelFont]; t.textColor = [MeshTheme accent]; t.backgroundColor = [UIColor clearColor];
     t.text = title;
     [b addSubview:t];
-    UILabel *m = [[UILabel alloc] initWithFrame:CGRectMake(14, 28, b.bounds.size.width - 28, 20)];
+    UILabel *m = [[MeshEmojiLabel alloc] initWithFrame:CGRectMake(14, 28, b.bounds.size.width - 28, 20)];
     m.font = [MeshTheme previewFont]; m.textColor = [MeshTheme ink]; m.backgroundColor = [UIColor clearColor];
     m.text = text;
     [b addSubview:m];

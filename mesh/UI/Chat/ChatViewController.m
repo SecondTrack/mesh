@@ -31,6 +31,9 @@
 #import "MeshVideoCodec.h"
 #import "MeshGalleryViewController.h"
 #import "MeshNotifications.h"
+#import "MeshGroupInfo.h"
+#import "GroupProfileViewController.h"
+#import "GroupJoinLinkViewController.h"
 
 static const long long kDividerRow = -1;      // Hinweiszeile "Neue Nachrichten" (keine Datenbankzeile)
 static const CGFloat kStripRow = 26;          // Zeilen unter dem Kopf: offline, Selbstlöschen
@@ -85,6 +88,23 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     int        _stripOffline;             // zuletzt gezeigt: 0 verbunden, 1 offline, 2 Tor startet (-1 noch nie)
     int        _stripTimer;               // Selbstlöschen des Chats (aus updateStrip)
     BOOL       _stripFromSent;
+
+    BOOL          _isGroup, _isTeam;      // Gruppenchat ("g:<gid>") bzw. Team-Chat ("team")
+    MeshGroupInfo *_group;                // je Neuladen
+    NSMutableDictionary *_senderNames;    // Gruppe: Pubkey -> Anzeigename, je Neuladen
+    UILabel      *_noteRow;               // fester Hinweis unter dem Kopf (Team: anonym; Gruppe: nur lesbar)
+}
+
++ (void)confirmDeleteGroup:(NSString *)chat done:(void (^)(void))done {
+    BOOL dissolves = [[MeshSession shared] deletingDissolvesGroup:chat];
+    [MeshPopup confirm:dissolves ? L(@"Dissolve group for everyone?") : L(@"Delete chat?")
+               message:dissolves ? L(@"The group will be dissolved for everyone. Then the chat is deleted on this device.")
+                                 : L(@"If you are still in the group, you leave it first.")
+                action:dissolves ? L(@"Dissolve and delete") : L(@"Delete") destructive:YES handler:^(BOOL yes) {
+        if (!yes) return;
+        [[MeshSession shared] deleteChat:chat];
+        if (done) done();
+    }];
 }
 
 #pragma mark - Lebenszyklus
@@ -101,6 +121,9 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
         _quotes = [NSMutableDictionary dictionary];
         _cardKnown = [NSMutableDictionary dictionary];
         _stripOffline = -1;
+        _isGroup = [[MeshSession shared] isGroupChat:peerHex];
+        _isTeam = [[MeshSession shared] isTeamChat:peerHex];
+        _senderNames = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -146,6 +169,13 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     _timerRow = [self stripRowWithColor:[MeshTheme surface] text:[MeshTheme muted]];
     [_timerRow setImage:[MeshGlyphs icon:@"timer" color:[MeshTheme muted] size:14] forState:UIControlStateNormal];
     [_timerRow addTarget:self action:@selector(changeTimer) forControlEvents:UIControlEventTouchUpInside];
+    _noteRow = [[UILabel alloc] init];
+    _noteRow.backgroundColor = [MeshTheme surface];
+    _noteRow.textColor = [MeshTheme muted];
+    _noteRow.font = [MeshTheme timeFont];
+    _noteRow.numberOfLines = 2;
+    _noteRow.textAlignment = NSTextAlignmentCenter;
+    _noteRow.hidden = YES;
 
     _table = [[UITableView alloc] initWithFrame:CGRectMake(0, headH, W, H - headH - inH) style:UITableViewStylePlain];
     _table.backgroundColor = [MeshTheme bg];
@@ -154,11 +184,13 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     [self.view addSubview:_table];
     [self.view addSubview:_offlineRow];
     [self.view addSubview:_timerRow];
+    [self.view addSubview:_noteRow];
 
     _baseInputY = H - inH;
     _inputBar = [[MeshChatInputBar alloc] initWithFrame:CGRectMake(0, _baseInputY, W, inH)];
     _inputBar.delegate = self;
-    _inputBar.microphoneAvailable = [MeshCaps hasMicrophone];
+    _inputBar.microphoneAvailable = [MeshCaps hasMicrophone] && !_isTeam;
+    _inputBar.textOnly = _isTeam;   // Team-Chat: nur Text (kein Anhang, keine Sprache)
     [self.view addSubview:_inputBar];
 
     _replyBar = [[MeshReplyBar alloc] initWithFrame:CGRectMake(0, _baseInputY - [MeshReplyBar height], W, [MeshReplyBar height])];
@@ -227,6 +259,13 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
         _timerRow.frame = CGRectMake(0, y, W, kStripRow);
         y += kStripRow;
     }
+    NSString *note = [self noteText];
+    _noteRow.hidden = !note;
+    if (note) {
+        _noteRow.text = note;
+        _noteRow.frame = CGRectMake(0, y, W, 34);
+        y += 34;
+    }
     CGRect t = _table.frame;
     if (t.origin.y == y) return;
     BOOL bottom = [self nearBottom];
@@ -234,6 +273,32 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     _table.frame = t;
     [self layoutBottom];   // Höhe der Liste
     if (bottom) [self scrollToBottom];
+}
+
+// Team-Chat: fester Hinweis zur Anonymität; Gruppe: warum nicht geschrieben werden kann.
+- (NSString *)noteText {
+    if (_isTeam) return L(@"Anonymous: the team can't see who you are – only what you write here.");
+    if (!_isGroup || !_group) return nil;
+    switch (_group.status) {
+        case MeshGroupJoining:
+        case MeshGroupLinkJoining: return L(@"Waiting for the admin to add you…");
+        case MeshGroupJoinFailed:  return L(@"Joining failed");
+        case MeshGroupInviteExpired: return L(@"Invitation expired");
+        case MeshGroupLeft:      return L(@"You left the group");
+        case MeshGroupRemoved:   return L(@"You are no longer in the group");
+        case MeshGroupDissolved: return L(@"Group dissolved");
+        default:                 return nil;
+    }
+}
+
+// Nur Mitglieder schreiben; sonst ist der Chat nur lesbar (die Eingabeleiste verschwindet).
+- (void)updateWritable {
+    BOOL writable = !_isGroup || _group.canWrite;
+    if (_inputBar.hidden == !writable) return;
+    _inputBar.hidden = !writable;
+    if (!writable) { [_inputBar endEditing]; [self cancelReply]; }
+    _baseInputY = self.view.bounds.size.height - (writable ? [MeshChatInputBar height] : 0);
+    [self layoutBottom];
 }
 
 - (void)changeTimer {
@@ -328,7 +393,10 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     if (_voice.recording) { [self stopAndSend]; return; }
     if (bar.hasText) {
         NSString *text = [bar.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (_isTeam && ![[MeshSession shared] teamCanSend]) { [MeshPopup info:L(@"Anonymous messages need Tor.")]; return; }
+        if (_isTeam && text.length > 4000) { [MeshPopup info:L(@"Too long (at most 4000 characters).")]; return; }
         if ([[MeshSession shared] sendTo:_peerHex text:text replyTo:_replyTo.cmid]) { bar.text = @""; [self cancelReply]; }
+        else if (_isTeam || _isGroup) [MeshPopup info:L(@"Failed")];
     } else if (bar.microphoneAvailable) {
         [self startRecording];
     }
@@ -383,13 +451,16 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
 // Async, nachdem Effekt+AAC fertig sind.
 - (void)voiceRecordingFinished:(NSData *)audio seconds:(int)seconds {
     _inputBar.recording = NO;
-    if (audio.length && [[MeshSession shared] sendVoiceTo:_peerHex audio:audio seconds:seconds replyTo:_replyTo.cmid]) [self cancelReply];
+    MeshSession *s = [MeshSession shared];
+    if ([s tooLargeForGroup:_peerHex voice:audio seconds:seconds]) { [MeshPopup info:L(@"Too large for groups")]; return; }   // B8.3
+    if (audio.length && [s sendVoiceTo:_peerHex audio:audio seconds:seconds replyTo:_replyTo.cmid]) [self cancelReply];
     else if (!audio.length) [MeshPopup info:L(@"Recording too short")];
+    else if (_isGroup) [MeshPopup info:L(@"Failed")];
 }
 
 // Langes Drücken auf den Aktionsknopf: Stimmverzerrer-Seite öffnen.
 - (void)inputBarHeldAction:(MeshChatInputBar *)bar {
-    if (_voice.recording) return;
+    if (_voice.recording || _isTeam) return;
     [self.navigationController pushViewController:[[VoiceEffectViewController alloc] init] animated:YES];
 }
 
@@ -453,7 +524,8 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
 
 - (void)replyTo:(MeshMessage *)m {
     _replyTo = m;
-    [_replyBar setAuthor:LF(@"Reply to %@", [[MeshSession shared] displayNameFor:_peerHex]) text:[self snippetOf:m]];
+    NSString *who = _isGroup && m.sender ? [self senderNameOf:m.sender] : [[MeshSession shared] displayNameFor:_peerHex];
+    [_replyBar setAuthor:LF(@"Reply to %@", who) text:[self snippetOf:m]];
     _replyBar.hidden = NO;
     [self layoutBottom];
     [self scrollToBottom];
@@ -492,7 +564,22 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
 }
 
 - (void)updateTitle {
-    _titleLabel.text = [MeshFormat contactName:_peerName accepted:_acceptedState == 2];
+    _titleLabel.text = _isGroup || _isTeam ? _peerName : [MeshFormat contactName:_peerName accepted:_acceptedState == 2];
+}
+
+// Absender in Gruppen: Kontaktname, sonst Name aus der Gruppe; je Neuladen einmal je Mitglied.
+- (NSString *)senderNameOf:(NSString *)pk {
+    NSString *n = _senderNames[pk];
+    if (!n) _senderNames[pk] = n = [[MeshSession shared] senderName:pk inChat:_peerHex] ?: @"";
+    return n;
+}
+
+// Zeile über der Blase: Absender (Gruppe, eingehend) bzw. "an alle" (Rundbrief im Team-Chat).
+- (NSString *)headerOf:(MeshMessage *)m {
+    if (m.rowId == kDividerRow || m.kind == MeshPayloadNotice || m.fromMe) return nil;
+    if (_isGroup && m.sender.length) return [self senderNameOf:m.sender];
+    if (_isTeam && [m.sender isEqualToString:MeshSenderAll]) return L(@"to everyone");
+    return nil;
 }
 
 // Name und Annahme des Kontakts einmal je Neuladen (Zeilen, Zitate und Titel brauchen sie oft).
@@ -507,9 +594,15 @@ static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens
     _acceptedState = acc;
     _identity = me;
     [_cardKnown removeAllObjects];
+    [_senderNames removeAllObjects];
+    if (_isGroup) { _group = [s groupInfo:_peerHex]; [self updateWritable]; }
 }
 
-- (void)openPeer { [self.navigationController pushViewController:[[PeerProfileViewController alloc] initWithPeer:_peerHex] animated:YES]; }
+- (void)openPeer {
+    if (_isTeam) return;   // kein Profil, nichts zu teilen oder zu prüfen
+    UIViewController *vc = _isGroup ? [[GroupProfileViewController alloc] initWithChat:_peerHex] : [[PeerProfileViewController alloc] initWithPeer:_peerHex];
+    [self.navigationController pushViewController:vc animated:YES];
+}
 
 - (void)openAvatar {
     UIImage *big = [MeshAvatarView largeImageForSource:MeshAvatarContact pubkey:_peerHex];
@@ -676,12 +769,30 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     NSString *npub = [s npubFor:pk];
     NSString *key = npub.length > 20 ? [NSString stringWithFormat:@"%@…%@", [npub substringToIndex:12], [npub substringFromIndex:npub.length - 6]] : npub;
     [MeshPopup confirm:L(@"Add contact?")
-               message:LF(@"%@\nshared by %@\n%@\n\nOnly add people you know.", card[0], [s displayNameFor:_peerHex], key)
+               message:LF(@"%@\nshared by %@\n%@\n\nOnly add people you know.", card[0], _isGroup && m.sender ? [self senderNameOf:m.sender] : [s displayNameFor:_peerHex], key)
                 action:L(@"Add") destructive:NO handler:^(BOOL yes) {
         if (!yes) return;
         if (![s addContact:[MeshPayload parse:m.content].code name:card[0]]) { [MeshPopup info:L(@"This QR code doesn't contain a contact key.")]; return; }
         [self openChatWith:pk];
     }];
+}
+
+// Link-Karte (B10): @[Gruppenname, "g:<gid>" fürs Bild, Link|""]. Nur im 1:1-Chat (in Gruppen verworfen).
+- (NSArray *)linkCardOf:(MeshMessage *)m {
+    MeshPayload *card = [MeshPayload parse:m.content];
+    NSDictionary *d = [[MeshSession shared] groupLinkDetails:card.code];
+    NSString *name = MeshCleanName(card.text ?: @"");
+    return @[name.length ? name : L(@"Group"), d[@"chat"] ?: @"", d ? d[@"link"] : @""];
+}
+
+- (BOOL)linkCardHasAction:(MeshMessage *)m { return !m.fromMe && !_isGroup && [[self linkCardOf:m][2] length] > 0; }
+
+// Antippen = Beitritts-Seite; von einem noch nicht angenommenen Absender erst die Anfrage annehmen.
+- (void)openLinkCard:(MeshMessage *)m {
+    NSArray *card = [self linkCardOf:m];
+    if (_isGroup || ![card[2] length]) return;
+    if (!m.fromMe && ![[MeshSession shared] isAccepted:_peerHex]) { [self askAcceptPeer]; return; }
+    [GroupJoinLinkViewController openIfLink:card[2] name:card[0] from:self.navigationController];
 }
 
 // Bild antippen: Vollbild mit allen Bildern und Videos des Chats, wischen wie in der Galerie
@@ -898,7 +1009,7 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     if (kind == MeshPayloadVoice) return kind;
     if (kind == MeshPayloadImage && [self imageSize:size ofMessage:m]) return kind;
     if (kind == MeshPayloadFile && [self mayShowMediaOf:m]) return kind;
-    if (kind == MeshPayloadContact) return kind;
+    if (kind == MeshPayloadContact || kind == MeshPayloadGroupLink) return kind;
     if (kind == MeshPayloadImage) *text = [self imagePlaceholderFor:m];
     else if (kind == MeshPayloadText) *text = [self displayText:m.content];
     else *text = [MeshFormat preview:m.content kind:kind];
@@ -912,7 +1023,8 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     NSArray *quote = _quotes[m.replyTo];
     if (!quote) {
         MeshMessage *q = [[MeshSession shared] message:m.replyTo in:_peerHex];
-        quote = @[ !q ? @"" : q.fromMe ? L(@"You") : _peerName, [self snippetOf:q], @(q != nil) ];
+        NSString *author = !q ? @"" : q.fromMe ? L(@"You") : (_isGroup && q.sender) ? [self senderNameOf:q.sender] : _peerName;
+        quote = @[ author, [self snippetOf:q], @(q != nil) ];
         _quotes[m.replyTo] = quote;
     }
     *author = quote[0];
@@ -950,9 +1062,12 @@ static NSCache *Heights(void) {
     } else if (m.kind == MeshPayloadContact) {
         NSArray *card = [self cardOf:m];
         extra = (!m.fromMe && [card[1] length] && ([card[2] boolValue] || _acceptedState == 2)) ? @"a" : @"-";
+    } else if (m.kind == MeshPayloadGroupLink) {
+        extra = [self linkCardHasAction:m] ? @"a" : @"-";
     }
-    NSString *hk = [NSString stringWithFormat:@"%@|%@|%lld|%d|%d|%@|%.0f|%d|%d|%d|%d|%@", _identity, _peerHex, m.rowId, (int)m.kind,
-                    m.status, reactionsOf(m), t.bounds.size.width, m.width, m.height, _acceptedState, m.replyTo.length > 0, extra];
+    NSString *hk = [NSString stringWithFormat:@"%@|%@|%lld|%d|%d|%@|%.0f|%d|%d|%d|%d|%@|%d", _identity, _peerHex, m.rowId, (int)m.kind,
+                    m.status, reactionsOf(m), t.bounds.size.width, m.width, m.height, _acceptedState, m.replyTo.length > 0, extra,
+                    [self headerOf:m] != nil];   // Kopfzeile (Absender/"an alle") ändert die Höhe
     NSNumber *known = [Heights() objectForKey:hk];
     if (known) return known.floatValue;
     CGFloat h = [self measureRow:m width:t.bounds.size.width];
@@ -974,9 +1089,11 @@ static NSCache *Heights(void) {
             base = [MeshBubbleCell heightForContactCardWithAction:action];
             break;
         }
+        case MeshPayloadGroupLink: base = [MeshBubbleCell heightForContactCardWithAction:[self linkCardHasAction:m]]; break;
         default:                base = [MeshBubbleCell heightForText:text width:w]; break;
     }
-    return base + [MeshBubbleCell extraHeightWithQuote:[self quoteFor:m author:&qa text:&qt] reactions:reactionsOf(m).length > 0];
+    return base + [MeshBubbleCell extraHeightWithQuote:[self quoteFor:m author:&qa text:&qt] reactions:reactionsOf(m).length > 0
+                                                header:[self headerOf:m] != nil];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)t cellForRowAtIndexPath:(NSIndexPath *)ip {
@@ -992,6 +1109,8 @@ static NSCache *Heights(void) {
     }
     MeshBubbleCell *cell = [t dequeueReusableCellWithIdentifier:@"bubble"];
     if (!cell) cell = [[MeshBubbleCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"bubble"];
+    NSString *head = [self headerOf:m];
+    [cell setHeader:head color:_isGroup ? [MeshTheme senderColor:m.sender] : [MeshTheme muted]];
     NSString *qa = nil, *qt = nil;
     if ([self quoteFor:m author:&qa text:&qt]) {
         [cell setQuoteAuthor:qa text:qt];
@@ -1020,6 +1139,12 @@ static NSCache *Heights(void) {
             BOOL known = [card[2] boolValue], action = !m.fromMe && [card[1] length] && (known || _acceptedState == 2);
             [cell setContactCard:card[0] pubkey:card[1] action:action ? (known ? L(@"Open chat") : L(@"Add")) : nil
                            glyph:known ? @"chat" : @"add" fromMe:m.fromMe status:m.status width:w];
+            break;
+        }
+        case MeshPayloadGroupLink: {
+            NSArray *card = [self linkCardOf:m];
+            [cell setCard:card[0] subtitle:L(@"Group link") pubkey:card[1] action:[self linkCardHasAction:m] ? L(@"Join") : nil
+                    glyph:@"group" fromMe:m.fromMe status:m.status width:w];
             break;
         }
         case MeshPayloadImage: {
@@ -1051,6 +1176,7 @@ static NSCache *Heights(void) {
         return;
     }
     if (kind == MeshPayloadContact) { [self offerContactCard:m]; return; }
+    if (kind == MeshPayloadGroupLink) { [self openLinkCard:m]; return; }
     if (kind == MeshPayloadVoice) {                      // Sprachnachricht antippen -> abspielen/stoppen
         if (m.rowId == _playingRowId) { [_voice stop]; _playingRowId = 0; [self stopPlayTimer]; [t reloadData]; }
         else [self playVoice:m];

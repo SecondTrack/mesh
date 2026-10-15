@@ -56,7 +56,13 @@ suite Bech32            tests/bech32_test.m    -Imesh/Protocol -Imesh/Crypto mes
 suite Text              tests/text_test.m      -Imesh/Support mesh/Support/MeshText.m
 suite Sicherheitscode    tests/safetycode_test.m -Imesh/Protocol mesh/Protocol/MeshSafetyCode.m
 suite Tastatur         tests/keyboard_test.m  -framework CoreGraphics -Imesh/UI/Common mesh/UI/Common/MeshKeyboardLayout.m
+suite Chat-Eingabe     tests/linetext_test.m  -framework CoreGraphics -Imesh/UI/Common -Imesh/Support mesh/UI/Common/MeshLineText.m \
+                        mesh/UI/Common/MeshKeyboardLayout.m mesh/Support/MeshText.m
+suite Emojis           tests/emoji_test.m     -framework CoreText -framework CoreGraphics -Imesh/UI/Common mesh/UI/Common/MeshEmojiText.m
 suite PIN-Sperre        tests/pinguard_test.m  -Imesh/Domain mesh/Domain/MeshPinGuard.m
+suite Gruppen-Speicher  tests/groups_store_test.m -framework Security -Imesh/Storage -Imesh/Model -Imesh/Support -Imesh/Crypto -lsqlite3 \
+                        mesh/Storage/MeshStore.m mesh/Support/MeshTime.m mesh/Storage/MeshStore+Migration.m mesh/Storage/MeshStore+Vault.m mesh/Storage/MeshStore+Outbox.m mesh/Storage/MeshStore+Chat.m mesh/Storage/MeshStore+Signal.m mesh/Storage/MeshStore+Group.m mesh/Storage/MeshVaultRecord.m mesh/Model/MeshChat.m mesh/Model/MeshMessage.m mesh/Model/MeshProfile.m mesh/Model/MeshPayload.m mesh/Support/MeshBase64.m \
+                        mesh/Crypto/MeshSeal.m mesh/Crypto/MeshCrypto.m mesh/Support/MeshMemory.m mesh/Support/MeshText.m
 suite Notlöschung       tests/panic_test.m     -framework Security -Imesh/Domain -Imesh/Crypto -Imesh/Support mesh/Domain/MeshPanic.m mesh/Support/MeshTime.m \
                         mesh/Domain/MeshKeychain.m mesh/Crypto/MeshCrypto.m mesh/Crypto/MeshHex.m mesh/Support/MeshMemory.m mesh/Support/MeshLog.m
 
@@ -75,7 +81,8 @@ if PREFIX=$(brew --prefix secp256k1 2>/dev/null) && [ -f "$PREFIX/include/secp25
                         mesh/Protocol/MeshNip44.m mesh/Protocol/MeshKeys.m mesh/Crypto/MeshChaCha20.m mesh/Crypto/MeshCrypto.m \
                         mesh/Crypto/MeshHex.m mesh/Support/MeshMemory.m mesh/Support/MeshBase64.m
   suite Nachrichten     tests/messenger_test.m $SECP -include tests/fakes/MeshTestPrefix.h -lsqlite3 -Imesh/Domain -Imesh/Storage -Imesh/Model \
-                        -Imesh/Protocol -Imesh/Crypto -Imesh/Support mesh/Domain/MeshMessenger.m mesh/Domain/MeshInboxPolicy.m \
+                        -Imesh/Protocol -Imesh/Crypto -Imesh/Support -Imesh/Compat mesh/Domain/MeshMessenger.m mesh/Domain/MeshMessenger+Groups.m mesh/Domain/MeshMessenger+GroupsOpen.m mesh/Protocol/MeshGroupLink.m \
+                        mesh/Storage/MeshStore+Group.m mesh/Protocol/MeshGroupState.m mesh/Compat/MeshJSON.m mesh/Compat/MeshJSONCodec.m mesh/Domain/MeshInboxPolicy.m \
                         mesh/Domain/MeshPanic.m mesh/Domain/MeshKeychain.m mesh/Support/MeshLog.m mesh/Domain/MeshSignal.m \
                         mesh/Protocol/MeshSignalSession.m mesh/Protocol/MeshSignalWire.m mesh/Protocol/MeshSignalBundle.m mesh/Crypto/MeshCurve25519.m \
                         mesh/Storage/MeshStore.m mesh/Support/MeshTime.m mesh/Storage/MeshStore+Migration.m mesh/Storage/MeshStore+Vault.m mesh/Storage/MeshStore+Outbox.m \
@@ -84,6 +91,17 @@ if PREFIX=$(brew --prefix secp256k1 2>/dev/null) && [ -f "$PREFIX/include/secp25
                         mesh/Protocol/MeshNip44.m mesh/Protocol/MeshKeys.m mesh/Protocol/MeshEvent.m mesh/Crypto/MeshChaCha20.m \
                         mesh/Crypto/MeshCrypto.m mesh/Crypto/MeshHex.m mesh/Crypto/MeshSeal.m mesh/Support/MeshMemory.m \
                         mesh/Support/MeshBase64.m mesh/Support/MeshText.m
+  suite Gruppen        tests/groups_test.m $SECP -include tests/fakes/MeshTestPrefix.h -lsqlite3 -Itests/fakes -Imesh/Domain -Imesh/Storage -Imesh/Model \
+                        -Imesh/Protocol -Imesh/Crypto -Imesh/Support -Imesh/Compat -Imesh/Transport mesh/Domain/MeshMessenger.m mesh/Domain/MeshMessenger+Groups.m mesh/Domain/MeshMessenger+GroupsOpen.m mesh/Protocol/MeshGroupLink.m \
+                        mesh/Domain/MeshTeam.m mesh/Domain/MeshInboxPolicy.m mesh/Domain/MeshPanic.m mesh/Domain/MeshKeychain.m mesh/Support/MeshLog.m mesh/Domain/MeshSignal.m \
+                        mesh/Protocol/MeshSignalSession.m mesh/Protocol/MeshSignalWire.m mesh/Protocol/MeshSignalBundle.m mesh/Crypto/MeshCurve25519.m \
+                        mesh/Storage/MeshStore.m mesh/Support/MeshTime.m mesh/Storage/MeshStore+Migration.m mesh/Storage/MeshStore+Vault.m mesh/Storage/MeshStore+Outbox.m \
+                        mesh/Storage/MeshStore+Chat.m mesh/Storage/MeshStore+Signal.m mesh/Storage/MeshStore+Group.m mesh/Storage/MeshVaultRecord.m mesh/Model/MeshChat.m mesh/Model/MeshMessage.m \
+                        mesh/Model/MeshProfile.m mesh/Model/MeshPayload.m mesh/Protocol/MeshEnvelope.m mesh/Protocol/MeshGroupState.m mesh/Protocol/MeshTeamPost.m mesh/Protocol/MeshNip04.m \
+                        mesh/Protocol/MeshNip44.m mesh/Protocol/MeshKeys.m mesh/Protocol/MeshEvent.m mesh/Crypto/MeshChaCha20.m \
+                        mesh/Crypto/MeshCrypto.m mesh/Crypto/MeshHex.m mesh/Crypto/MeshSeal.m mesh/Support/MeshMemory.m \
+                        mesh/Support/MeshBase64.m mesh/Support/MeshText.m mesh/Compat/MeshJSON.m mesh/Compat/MeshJSONCodec.m \
+                        mesh/Transport/MeshRelayPool.m mesh/Transport/MeshVerifiedEvents.m mesh/Transport/MeshTor.m tests/fakes/MeshRelayFake.m mesh/Support/MeshNotifications.m
   suite Wächter         tests/watcher_test.m $SECP -include tests/fakes/MeshTestPrefix.h -Itests/fakes -Imesh/Domain -Imesh/Transport \
                         -Imesh/Protocol -Imesh/Crypto -Imesh/Support mesh/Domain/MeshInboxWatcher.m mesh/Domain/MeshPanic.m \
                         mesh/Domain/MeshKeychain.m mesh/Transport/MeshRelayPool.m mesh/Transport/MeshVerifiedEvents.m tests/fakes/MeshRelayFake.m mesh/Transport/MeshTor.m \

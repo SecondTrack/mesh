@@ -36,7 +36,7 @@ restricted() {   # <Header> <erlaubte Dateien …>
     case " $* " in *" $f "*) ;; *) echo "FAIL $f importiert $h"; bad=1 ;; esac
   done
 }
-restricted MeshStore+Internal.h mesh/Storage/MeshStore.m mesh/Storage/MeshStore+Vault.m mesh/Storage/MeshStore+Outbox.m mesh/Storage/MeshStore+Migration.m mesh/Storage/MeshStore+Chat.m mesh/Storage/MeshStore+Signal.m
+restricted MeshStore+Internal.h mesh/Storage/MeshStore.m mesh/Storage/MeshStore+Vault.m mesh/Storage/MeshStore+Outbox.m mesh/Storage/MeshStore+Migration.m mesh/Storage/MeshStore+Chat.m mesh/Storage/MeshStore+Signal.m mesh/Storage/MeshStore+Group.m
 restricted MeshStore+Vault.h mesh/Storage/MeshStore+Vault.m mesh/Domain/MeshVault.m
 
 [ $bad = 0 ] && echo "ok  Schichtgrenzen eingehalten"

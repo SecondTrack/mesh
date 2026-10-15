@@ -14,12 +14,14 @@ static const NSTimeInterval kMaxVideoSeconds = 20;   // passt bei niedriger Qual
 @implementation MeshAttachMenu
 
 + (void)showFrom:(UIViewController *)host peer:(NSString *)peer replyTo:(NSString *(^)(void))replyTo sent:(void (^)(void))sent {
-    BOOL camera = [MeshCaps hasCamera];
-    NSArray *titles = camera ? @[L(@"Camera"), L(@"Photo from library"), L(@"Video"), L(@"Share contact")]
-                             : @[L(@"Photo from library"), L(@"Video"), L(@"Share contact")];
+    BOOL camera = [MeshCaps hasCamera], video = ![[MeshSession shared] isGroupChat:peer];   // Videos sind Dateien: nicht in Gruppen
+    NSMutableArray *titles = [NSMutableArray arrayWithObjects:L(@"Camera"), L(@"Photo from library"), L(@"Video"), L(@"Share contact"), nil];
+    if (!video) [titles removeObjectAtIndex:2];
+    if (!camera) [titles removeObjectAtIndex:0];
     [MeshPopup sheet:nil options:titles destructiveIndex:-1 handler:^(NSInteger idx) {
         if (idx < 0) return;
         if (!camera) idx++;
+        if (!video && idx >= 2) idx++;
         if (idx == 0) [self pickImageFrom:host source:UIImagePickerControllerSourceTypeCamera peer:peer replyTo:replyTo sent:sent];
         if (idx == 1) [self pickImageFrom:host source:UIImagePickerControllerSourceTypePhotoLibrary peer:peer replyTo:replyTo sent:sent];
         if (idx == 2) [self pickVideoFrom:host peer:peer replyTo:replyTo sent:sent];
@@ -35,7 +37,10 @@ static const NSTimeInterval kMaxVideoSeconds = 20;   // passt bei niedriger Qual
         NSData *jpeg = [MeshImageCodec jpegForChat:image];
         if (!jpeg.length) return;
         MeshImageSendPreview *preview = [[MeshImageSendPreview alloc] initWithJPEG:jpeg send:^(NSData *data) {
-            if ([[MeshSession shared] sendImageTo:peer jpeg:data replyTo:replyTo()] && sent) sent();
+            MeshSession *s = [MeshSession shared];
+            if ([s tooLargeForGroup:peer image:data]) { [MeshPopup info:L(@"Too large for groups")]; return; }   // B8.3
+            if ([s sendImageTo:peer jpeg:data replyTo:replyTo()]) { if (sent) sent(); }
+            else if ([s isGroupChat:peer]) [MeshPopup info:L(@"Failed")];
         }];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [host.navigationController pushViewController:preview animated:YES];
