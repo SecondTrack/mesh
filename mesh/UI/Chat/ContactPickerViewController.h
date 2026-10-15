@@ -4,4 +4,6 @@
 
 @interface ContactPickerViewController : UIViewController
 - (instancetype)initWithPeer:(NSString *)peerHex sent:(void (^)(void))sent;   // an wen; sent nach dem Senden
+// Umgekehrt (Kontaktprofil "Kontakt teilen"): die Karte von contactHex an den gewählten Kontakt
+- (instancetype)initSharingContact:(NSString *)contactHex;
 @end

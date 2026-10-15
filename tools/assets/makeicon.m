@@ -19,6 +19,9 @@ int main(int argc,char**argv){ @autoreleasepool{
     CGContextAddPath(c,p); CGContextClip(c);
     // Hintergrund #0A0F0E
     CGContextSetRGBFillColor(c,10/255.0,15/255.0,14/255.0,1); CGContextFillRect(c,CGRectMake(0,0,S,S));
+    // Symbol um die Mitte vergrößern (Nutzerwunsch: füllt das Icon mehr aus), Strichstärken wachsen mit
+    const double kSymbol=1.18;
+    CGContextTranslateCTM(c,S/2,S/2); CGContextScaleCTM(c,kSymbol,kSymbol); CGContextTranslateCTM(c,-S/2,-S/2);
     // Knoten (108-Raum, y gespiegelt: CG-Ursprung unten-links -> yc = 108-y)
     double nx[6]={79,66.5,41.5,29,41.5,66.5}, ny[6]={54,32.4,32.4,54,75.6,75.6};
     double cx=54, cy=54;

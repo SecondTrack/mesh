@@ -5,10 +5,12 @@
 #import "MeshSignal.h"
 #import "MeshStore.h"
 #import "MeshStore+Signal.h"
+#import "MeshStore+Chat.h"
 #import "MeshMessage.h"
 #import "MeshChat.h"
 #import "MeshPayload.h"
 #import "MeshContactCode.h"
+#import "MeshSafetyCode.h"
 #import "MeshHex.h"
 #import "MeshBech32.h"
 
@@ -96,6 +98,7 @@
     // eigene Bundle, damit auch die Gegenseite sofort Signal nutzt (wie Android beim Hinzufügen).
     if (code.bundle && ![store isVerified:hex]) [store setBundle:code.bundle forContact:hex];
     [self.active.messenger sayHelloTo:hex];
+    [self.active.messenger sendPictureTo:hex];   // privat: Android-Kontakte sehen unser kind-0-Bild sonst nicht
     [self requestProfileOf:hex];
     [self notify:MeshMessagesChangedNotification];
     return hex;
@@ -122,11 +125,17 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
     return [store isAccepted:peerHex] ? [store picForContact:peerHex] : nil;
 }
 
+- (NSString *)aboutFor:(NSString *)peerHex {
+    MeshStore *store = self.active.store;
+    return [store isAccepted:peerHex] ? [store aboutForContact:peerHex] : nil;
+}
+
 - (BOOL)isAccepted:(NSString *)peerHex { return [self.active.store isAccepted:peerHex]; }
 
 - (void)acceptContact:(NSString *)peerHex {
     [self.active.store setAccepted:peerHex];
     [self.active.store forgetProfileTimeOf:peerHex];   // das Profil mit Bild neu laden (als Anfrage nur der Name)
+    [self.active.messenger sendPictureTo:peerHex];     // eigenes Bild privat; die Gegenseite antwortet mit ihrem
     [self requestProfileOf:peerHex];
     [self notify:MeshProfilesChangedNotification];
     [self notify:MeshMessagesChangedNotification];
@@ -148,6 +157,19 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
 - (NSString *)myStaticContactCode {
     NSString *npub = [self myNpub];
     return npub ? [MeshContactCode codeWithNpub:npub bundle:[self.active.signal bundle]] : nil;
+}
+
+- (NSString *)safetyCodeQRWith:(NSString *)peerHex {
+    NSArray *groups = [self safetyNumberWith:peerHex];
+    return groups ? [MeshSafetyCode payloadFrom:[self myPubkeyHex] to:peerHex groups:groups] : nil;
+}
+
+- (MeshSafetyScan)checkSafetyScan:(NSString *)scanned with:(NSString *)peerHex {
+    NSArray *groups = [self safetyNumberWith:peerHex];
+    if (!groups) return MeshSafetyNotACode;
+    MeshSafetyScan r = [MeshSafetyCode check:scanned me:[self myPubkeyHex] peer:peerHex groups:groups];
+    if (r == MeshSafetyMatch) [self setVerified:YES for:peerHex];
+    return r;
 }
 
 - (BOOL)usesSignalWith:(NSString *)peerHex { return [self.active.signal hasSessionWith:peerHex]; }
@@ -188,6 +210,13 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
 - (NSArray *)messagesWith:(NSString *)peerHex { return [self.active.store messagesForChat:peerHex]; }
 - (NSArray *)messagesWith:(NSString *)peerHex limit:(NSUInteger)limit { return [self.active.store messagesForChat:peerHex limit:limit]; }
 
+- (NSArray *)messagesWith:(NSString *)peerHex before:(MeshMessage *)oldest limit:(NSUInteger)limit {
+    if (!oldest) return [self messagesWith:peerHex limit:limit];
+    return [self.active.store messagesForChat:peerHex beforeTs:oldest.ts rowId:oldest.rowId limit:limit];
+}
+
+- (NSUInteger)messageCountFrom:(NSString *)key in:(NSString *)peerHex { return [self.active.store countFromKey:key chat:peerHex]; }
+
 - (NSData *)mediaOf:(MeshMessage *)m {
     if (m.kind != MeshPayloadImage && m.kind != MeshPayloadVoice && m.kind != MeshPayloadFile) return nil;
     return [[self payloadOf:m] data];
@@ -197,6 +226,33 @@ static NSString *contactDisplayName(NSString *peerHex, NSString *own, NSString *
     NSString *content = [self.active.store contentOfMessage:m.rowId];
     return content ? [MeshPayload parse:content] : nil;
 }
+
+- (NSArray *)mediaWith:(NSString *)peerHex { return [self.active.store mediaForChat:peerHex]; }
+
+// Ungeprüfte Dateien einmal einordnen (danach gemerkt), dann nur noch zählen.
+- (NSUInteger)mediaCountWith:(NSString *)peerHex onlyMine:(BOOL)mine {
+    MeshStore *store = self.active.store;
+    for (MeshMessage *m in [store unclassifiedFilesForChat:peerHex onlyMine:mine]) [self isVideo:m];
+    return [store mediaCountForChat:peerHex onlyMine:mine];
+}
+
+// Ob eine Datei ein Video ist, steht nur im verschlüsselten Inhalt. Einmal nachsehen und in width
+// vermerken (-1 Video, -2 andere Datei): Zeilenhöhen und Galerie brauchen dann nichts zu entschlüsseln.
+- (BOOL)isVideo:(MeshMessage *)m {
+    if (m.kind != MeshPayloadFile) return NO;
+    if (m.width) return m.width == -1;
+    MeshPayload *p = [self payloadOf:m];
+    if (!p) {   // entsperrt und trotzdem nicht lesbar: nicht bei jedem Zählen neu entschlüsseln
+        if (self.unlocked && self.active.store) [self rememberImageWidth:-2 height:0 of:m];
+        return NO;
+    }
+    BOOL video = [p.fileMime isEqualToString:@"video/mp4"];
+    [self rememberImageWidth:video ? -1 : -2 height:0 of:m];
+    return video;
+}
+
+- (long long)readAtIn:(NSString *)peerHex { return [self.active.store readAtForChat:peerHex]; }
+- (void)markReadIn:(NSString *)peerHex { [self.active.store setReadAt:(long long)[[NSDate date] timeIntervalSince1970] chat:peerHex]; }
 
 - (void)rememberImageWidth:(int)width height:(int)height of:(MeshMessage *)message {
     [self.active.store setImageWidth:width height:height ofMessage:message.rowId];

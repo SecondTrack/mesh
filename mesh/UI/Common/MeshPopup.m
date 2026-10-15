@@ -2,6 +2,7 @@
 #import "MeshTheme.h"
 #import "MeshL10n.h"
 #import "MeshEmoji.h"
+#import "MeshKeyboard.h"
 #import "MeshNotifications.h"
 
 static NSMutableArray *gAlive;   // hält die aktiven Popups am Leben
@@ -283,6 +284,7 @@ static const CGFloat kEmojiRowHeight = 50;
     tf.keyboardType = numeric ? UIKeyboardTypeNumberPad : UIKeyboardTypeDefault;
     tf.keyboardAppearance = UIKeyboardAppearanceAlert;
     tf.placeholder = placeholder;
+    [MeshKeyboard attachTo:tf];
     p->_field = tf;
     [card addSubview:tf];
     y += kFieldHeight + 16;

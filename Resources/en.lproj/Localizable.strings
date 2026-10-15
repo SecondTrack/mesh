@@ -15,8 +15,6 @@
 "Microphone unavailable" = "Microphone unavailable";
 "Sending…" = "Sending…";
 "Recording too short" = "Recording too short";
-"Voice effect" = "Voice effect";
-"Voice effect: %@" = "Voice effect: %@";
 "Delete" = "Delete";
 
 // Me / profile menu
@@ -63,7 +61,6 @@
 "Contact" = "Contact";
 "SAFETY NUMBER" = "SAFETY NUMBER";
 "Verified" = "Verified";
-"Not verified (TOFU)" = "Not verified (TOFU)";
 "Unverify" = "Unverify";
 "Verify" = "Verify";
 
@@ -96,7 +93,6 @@
 "RECORDING" = "RECORDING";
 "Apple Voice Unit" = "Apple Voice Unit";
 "Hardware noise reduction + AGC" = "Hardware noise reduction + AGC";
-"Distortion" = "Distortion";
 "PLAYBACK" = "PLAYBACK";
 "Playback volume" = "Playback volume";
 "Make voice messages louder" = "Make voice messages louder";
@@ -134,11 +130,9 @@
 "Medium" = "Medium";
 
 // Voice effect names
-"High (chipmunk)" = "High (chipmunk)";
 "Deep" = "Deep";
 "Robot" = "Robot";
 "Alien" = "Alien";
-"Other voice (same tempo)" = "Other voice (same tempo)";
 
 // Chat preview placeholders
 "Photo" = "Photo";
@@ -285,11 +279,9 @@
 "One word more makes it 7776 times harder. For high risk." = "One word more makes it 7776 times harder. For high risk.";
 "* with 1000 graphics cards, after copying the device. Without a copy the lock slows every guess down and deletes everything after 30 wrong tries." = "* with 1000 graphics cards, after copying the device. Without a copy the lock slows every guess down and deletes everything after 30 wrong tries.";
 "Your %d words" = "Your %d words";
-"Write these words down on paper, in this order. Without them nobody gets in, not even you. Never store them on a phone or computer." = "Write these words down on paper, in this order. Without them nobody gets in, not even you. Never store them on a phone or computer.";
 "≈ %d bit · each word 1 of 7776" = "≈ %d bit · each word 1 of 7776";
 "Written down — continue" = "Written down — continue";
 "New words" = "New words";
-"Type the words from your paper to check them, with spaces in between." = "Type the words from your paper to check them, with spaces in between.";
 "Words" = "Words";
 "Hide" = "Hide";
 "Done" = "Done";
@@ -388,3 +380,57 @@
 "Scan QR" = "Scan QR";
 "Code not readable? Show in parts" = "Code not readable? Show in parts";
 "Show as one code" = "Show as one code";
+"Anonymous (recommended)" = "Anonymous (recommended)";
+"Higher" = "Higher";
+"Chipmunk" = "Chipmunk";
+"Chipmunk (disguised)" = "Chipmunk (disguised)";
+"Voice changer" = "Voice changer";
+"Effect for voice messages" = "Effect for voice messages";
+"The effect is baked in during recording and sent encrypted. “Anonymous” shifts pitch and timbre separately (no speed change) and varies per message, making speaker recognition harder. No changer makes a voice guaranteed unrecognizable: speaking style and content remain." = "The effect is baked in during recording and sent encrypted. “Anonymous” shifts pitch and timbre separately (no speed change) and varies per message, making speaker recognition harder. No changer makes a voice guaranteed unrecognizable: speaking style and content remain.";
+"%lu new messages" = "%lu new messages";
+"%lu photos and videos" = "%lu photos and videos";
+"1 new message" = "1 new message";
+"Block contact?" = "Block contact?";
+"Block contact" = "Block contact";
+"Connecting to Tor… messages are sent once connected." = "Connecting to Tor… messages are sent once connected.";
+"Could not save. Allow access to Photos in Settings → Privacy." = "Could not save. Allow access to Photos in Settings → Privacy.";
+"Delete and ignore future messages" = "Delete and ignore future messages";
+"Delete contact?" = "Delete contact?";
+"Delete contact" = "Delete contact";
+"Delete message?" = "Delete message?";
+"Media" = "Media";
+"Messages disappear %@ after reading" = "Messages disappear %@ after reading";
+"Messages disappear %@ after sending" = "Messages disappear %@ after sending";
+"No photos or videos in this chat yet" = "No photos or videos in this chat yet";
+"Offline – messages are sent once connected." = "Offline – messages are sent once connected.";
+"Removes the contact and the whole chat" = "Removes the contact and the whole chat";
+"Saved to Photos" = "Saved to Photos";
+"Send photo" = "Send photo";
+"Send this contact to someone else" = "Send this contact to someone else";
+"Send" = "Send";
+"Share contact with…" = "Share contact with…";
+"The contact and the chat are deleted on this device. New messages from this key are ignored." = "The contact and the chat are deleted on this device. New messages from this key are ignored.";
+"The contact and the whole chat are deleted on this device. The other person is not informed." = "The contact and the whole chat are deleted on this device. The other person is not informed.";
+"The quoted message is no longer there." = "The quoted message is no longer there.";
+"Safety number" = "Safety number";
+"Show code" = "Show code";
+"Scan code" = "Scan code";
+"Not verified yet" = "Not verified yet";
+"Codes do NOT match" = "Codes do NOT match";
+"Let %@ scan this code in their profile of you. Then scan the code of %@." = "Let %@ scan this code in their profile of you. Then scan the code of %@.";
+"The safety codes match. %@ is now verified." = "The safety codes match. %@ is now verified.";
+"Someone may be sitting between you and reading along. Don't write anything confidential until you have exchanged your Mesh codes again in person." = "Someone may be sitting between you and reading along. Don't write anything confidential until you have exchanged your Mesh codes again in person.";
+"This code belongs to another chat. Scan the safety code that %@ shows in their profile of you." = "This code belongs to another chat. Scan the safety code that %@ shows in their profile of you.";
+"This is not a Mesh safety code." = "This is not a Mesh safety code.";
+"Only needed if you didn't scan each other's Mesh codes directly, e.g. sent via Instagram or Telegram. Show each other the code and scan it – or compare the numbers in person or by call." = "Only needed if you didn't scan each other's Mesh codes directly, e.g. sent via Instagram or Telegram. Show each other the code and scan it – or compare the numbers in person or by call.";
+"Type the words from memory to check them, with spaces in between." = "Type the words from memory to check them, with spaces in between.";
+"First memorise the green initials as one word, then word by word. Also keep them on paper, never on a phone. Without them nobody gets in." = "First memorise the green initials as one word, then word by word. Also keep them on paper, never on a phone. Without them nobody gets in.";
+
+/* Eigene Tastatur: Return-Taste */
+"return" = "return";
+"Go" = "Go";
+"Search" = "Search";
+"Join" = "Join";
+"Next" = "Next";
+"Route" = "Route";
+"Emergency call" = "Emergency";

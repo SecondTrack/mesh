@@ -26,6 +26,10 @@
 
 // Empfangene Nachrichten mit Timer gelten beim Öffnen des Chats als gelesen: Uhr starten.
 - (void)startTimersInChat:(NSString *)chat now:(long long)now;
+// Bis wann der Chat gelesen ist (Unix-Sekunden, 0 = nie geöffnet seit dem Update).
+- (long long)readAtForChat:(NSString *)chat;
+- (void)setReadAt:(long long)time chat:(NSString *)chat;
+
 // Abgelaufene Nachrichten löschen (+ Tombstones). Anzahl der gelöschten.
 - (int)deleteExpiredAt:(long long)now;
 - (long long)nextExpiry;   // frühester Ablauf, 0 = keiner

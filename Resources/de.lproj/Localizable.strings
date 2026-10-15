@@ -15,8 +15,6 @@
 "Microphone unavailable" = "Mikrofon nicht verfügbar";
 "Sending…" = "Senden…";
 "Recording too short" = "Aufnahme zu kurz";
-"Voice effect" = "Stimmeffekt";
-"Voice effect: %@" = "Stimmeffekt: %@";
 "Delete" = "Löschen";
 
 // Ich / Profil-Menü
@@ -63,7 +61,6 @@
 "Contact" = "Kontakt";
 "SAFETY NUMBER" = "SICHERHEITSNUMMER";
 "Verified" = "Verifiziert";
-"Not verified (TOFU)" = "Nicht verifiziert (TOFU)";
 "Unverify" = "Aufheben";
 "Verify" = "Verifizieren";
 
@@ -96,7 +93,6 @@
 "RECORDING" = "AUFNAHME";
 "Apple Voice Unit" = "Apple Voice-Einheit";
 "Hardware noise reduction + AGC" = "Hardware-Rauschunterdr. + AGC";
-"Distortion" = "Verzerrer";
 "PLAYBACK" = "WIEDERGABE";
 "Playback volume" = "Wiedergabe-Lautstärke";
 "Make voice messages louder" = "Sprachnachrichten lauter";
@@ -134,11 +130,9 @@
 "Medium" = "Mittel";
 
 // Stimmeffekt-Namen
-"High (chipmunk)" = "Hoch (Chipmunk)";
 "Deep" = "Tief";
 "Robot" = "Roboter";
 "Alien" = "Alien";
-"Other voice (same tempo)" = "Andere Stimme (gleiches Tempo)";
 
 // Chat-Vorschau-Platzhalter
 "Photo" = "Bild";
@@ -285,11 +279,9 @@
 "One word more makes it 7776 times harder. For high risk." = "Ein Wort mehr macht es 7776-mal schwerer. Für hohes Risiko.";
 "* with 1000 graphics cards, after copying the device. Without a copy the lock slows every guess down and deletes everything after 30 wrong tries." = "* mit 1000 Grafikkarten, nachdem jemand das Gerät ausgelesen hat. Ohne Auslesen bremst die Sperre jeden Versuch und löscht nach 30 Fehlversuchen alles.";
 "Your %d words" = "Deine %d Wörter";
-"Write these words down on paper, in this order. Without them nobody gets in, not even you. Never store them on a phone or computer." = "Schreib diese Wörter in dieser Reihenfolge auf Papier. Ohne sie kommt niemand rein, auch du nicht. Nie auf Handy oder Computer speichern.";
 "≈ %d bit · each word 1 of 7776" = "≈ %d Bit · jedes Wort 1 aus 7776";
 "Written down — continue" = "Aufgeschrieben – weiter";
 "New words" = "Neue Wörter";
-"Type the words from your paper to check them, with spaces in between." = "Tipp die Wörter von deinem Zettel zur Kontrolle ein, mit Leerzeichen dazwischen.";
 "Words" = "Wörter";
 "Hide" = "Verbergen";
 "Done" = "Fertig";
@@ -388,3 +380,57 @@
 "Scan QR" = "QR scannen";
 "Code not readable? Show in parts" = "Code nicht lesbar? In Teilen zeigen";
 "Show as one code" = "Als ein Code zeigen";
+"Anonymous (recommended)" = "Anonym (empfohlen)";
+"Higher" = "Höher";
+"Chipmunk" = "Chipmunk";
+"Chipmunk (disguised)" = "Chipmunk (verschleiert)";
+"Voice changer" = "Stimmverzerrer";
+"Effect for voice messages" = "Effekt für Sprachnachrichten";
+"The effect is baked in during recording and sent encrypted. “Anonymous” shifts pitch and timbre separately (no speed change) and varies per message, making speaker recognition harder. No changer makes a voice guaranteed unrecognizable: speaking style and content remain." = "Der Effekt wird beim Aufnehmen fest eingebacken und verschlüsselt versendet. „Anonym“ verschiebt Tonhöhe und Klangfarbe getrennt (ohne Tempoänderung) und variiert pro Nachricht — das erschwert die Sprecher-Erkennung. Kein Verzerrer macht eine Stimme garantiert unerkennbar: Sprechweise und Inhalt bleiben.";
+"%lu new messages" = "%lu neue Nachrichten";
+"%lu photos and videos" = "%lu Fotos und Videos";
+"1 new message" = "1 neue Nachricht";
+"Block contact?" = "Kontakt blockieren?";
+"Block contact" = "Kontakt blockieren";
+"Connecting to Tor… messages are sent once connected." = "Verbinde mit Tor … Nachrichten gehen raus, sobald die Verbindung steht.";
+"Could not save. Allow access to Photos in Settings → Privacy." = "Speichern nicht möglich. Zugriff auf Fotos unter Einstellungen → Datenschutz erlauben.";
+"Delete and ignore future messages" = "Löschen und künftige Nachrichten ignorieren";
+"Delete contact?" = "Kontakt löschen?";
+"Delete contact" = "Kontakt löschen";
+"Delete message?" = "Nachricht löschen?";
+"Media" = "Medien";
+"Messages disappear %@ after reading" = "Nachrichten verschwinden %@ nach dem Lesen";
+"Messages disappear %@ after sending" = "Nachrichten verschwinden %@ nach dem Senden";
+"No photos or videos in this chat yet" = "Noch keine Fotos oder Videos in diesem Chat";
+"Offline – messages are sent once connected." = "Offline – Nachrichten gehen raus, sobald eine Verbindung steht.";
+"Removes the contact and the whole chat" = "Entfernt den Kontakt und den ganzen Chat";
+"Saved to Photos" = "In Fotos gespeichert";
+"Send photo" = "Foto senden";
+"Send this contact to someone else" = "Diesen Kontakt an jemand anderen schicken";
+"Send" = "Senden";
+"Share contact with…" = "Kontakt teilen mit …";
+"The contact and the chat are deleted on this device. New messages from this key are ignored." = "Kontakt und Chat werden auf diesem Gerät gelöscht. Neue Nachrichten von diesem Schlüssel werden ignoriert.";
+"The contact and the whole chat are deleted on this device. The other person is not informed." = "Kontakt und der ganze Chat werden auf diesem Gerät gelöscht. Die andere Person erfährt davon nichts.";
+"The quoted message is no longer there." = "Die zitierte Nachricht gibt es nicht mehr.";
+"Safety number" = "Sicherheitsnummer";
+"Show code" = "Code zeigen";
+"Scan code" = "Code scannen";
+"Not verified yet" = "Noch nicht bestätigt";
+"Codes do NOT match" = "Codes stimmen NICHT überein";
+"Let %@ scan this code in their profile of you. Then scan the code of %@." = "Lass %@ diesen Code im Profil von dir scannen. Danach scannst du den Code von %@.";
+"The safety codes match. %@ is now verified." = "Die Sicherheitsnummern stimmen überein. %@ ist jetzt verifiziert.";
+"Someone may be sitting between you and reading along. Don't write anything confidential until you have exchanged your Mesh codes again in person." = "Möglicherweise sitzt jemand zwischen euch und liest mit. Schreib nichts Vertrauliches, bis ihr eure Mesh-Codes persönlich neu ausgetauscht habt.";
+"This code belongs to another chat. Scan the safety code that %@ shows in their profile of you." = "Dieser Code gehört zu einem anderen Chat. Scanne den Code, den %@ im Profil von dir zeigt.";
+"This is not a Mesh safety code." = "Das ist kein Sicherheits-Code von Mesh.";
+"Only needed if you didn't scan each other's Mesh codes directly, e.g. sent via Instagram or Telegram. Show each other the code and scan it – or compare the numbers in person or by call." = "Nur nötig, wenn ihr eure Mesh-Codes nicht direkt voneinander gescannt habt, z. B. über Insta oder Telegram geschickt. Zeigt euch gegenseitig den Code und scannt ihn – oder vergleicht die Zahlen persönlich oder per Anruf.";
+"Type the words from memory to check them, with spaces in between." = "Tipp die Wörter aus dem Kopf ein, mit Leerzeichen dazwischen.";
+"First memorise the green initials as one word, then word by word. Also keep them on paper, never on a phone. Without them nobody gets in." = "Merk dir erst die grünen Anfangsbuchstaben als ein Wort, dann Wort für Wort. Dazu auf Papier verwahren, nie aufs Handy. Ohne sie kommt niemand rein.";
+
+/* Eigene Tastatur: Return-Taste */
+"return" = "Return";
+"Go" = "Los";
+"Search" = "Suchen";
+"Join" = "Beitreten";
+"Next" = "Weiter";
+"Route" = "Route";
+"Emergency call" = "Notruf";

@@ -39,7 +39,7 @@ static NSArray *MeshDefaultRelays(void) {
 }
 
 // Obergrenzen für Profildaten anderer (ein Profilbild als data:-URI ist selten > 200 KB).
-static const NSUInteger kMaxProfileName = 64, kMaxProfilePicture = 300 * 1024;
+static const NSUInteger kMaxProfileName = 64, kMaxProfileAbout = 200, kMaxProfilePicture = 300 * 1024;   // about: wie Android
 
 static const long long kSyncOverlap = 3 * 24 * 3600;              // DMs ab so lange vor der neuesten abholen
 static const NSUInteger kRequestProfiles = 30;                     // Namen so vieler Anfragen abfragen
@@ -212,8 +212,11 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 - (MeshProfile *)profile { return [_active.store loadProfile]; }
 
 - (void)saveProfile:(MeshProfile *)profile {
+    NSString *before = [_active.store loadProfile].picture ?: @"";
     [_active.store saveProfile:profile];
     [self publishProfile:profile];
+    // Bild geändert oder entfernt: auch privat an die Kontakte (Android liest Bilder nicht aus kind-0)
+    if (![before isEqualToString:profile.picture ?: @""]) [_active.messenger sendPictureToAllContacts];
     [self notify:MeshMessagesChangedNotification];
     [self notify:MeshProfilesChangedNotification];
 }
@@ -302,6 +305,12 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
 }
 
 - (void)messenger:(MeshMessenger *)messenger acceptedContact:(NSString *)peer { [self requestProfileOf:peer]; }
+
+// Privat geschicktes Profilbild: Avatare neu zeichnen (MeshAvatarView und der Bild-Cache hängen am Bildtext).
+- (void)messenger:(MeshMessenger *)messenger changedPictureOf:(NSString *)peer {
+    [self notify:MeshProfilesChangedNotification];
+    [self notify:MeshMessagesChangedNotification];
+}
 
 // Hinweis für Nachrichten außerhalb des offenen Chats (die UI zeigt ihn nur im Vordergrund).
 - (void)messenger:(MeshMessenger *)messenger received:(MeshMessage *)message from:(NSString *)peer {
@@ -399,13 +408,18 @@ static NSString *const kUnifiedInbox = @"mesh.unifiedInbox";
     NSString *pic  = [meta[@"picture"] isKindOfClass:[NSString class]] ? meta[@"picture"] : nil;
     name = MeshTruncate(name, kMaxProfileName);
     if (pic.length > kMaxProfilePicture) pic = nil;
+    NSString *about = [meta[@"about"] isKindOfClass:[NSString class]] ? MeshTruncate(MeshStripInvisible(meta[@"about"]), kMaxProfileAbout) : @"";
     BOOL changed = NO;
     for (MeshIdentity *i in [self unlockedIdentities]) {
         // Anfragen: nur der Name, kein Bild (bis zu 30 Fremde à 300 KB); nach dem Annehmen kommt es neu.
         BOOL accepted = [i.store isAccepted:event.pubkey];
         // Bild fehlt noch (z.B. Profil kam an, als der Kontakt noch eine Anfrage war): gleiches Event nochmal übernehmen
         BOOL fill = accepted && pic.length && ![i.store picForContact:event.pubkey].length;
-        changed |= [i.store setContactProfile:event.pubkey pname:name pic:(accepted ? pic : nil) createdAt:event.createdAt sameAgain:fill];
+        // Ohne "picture" (Android veröffentlicht keins) das bisherige behalten: es kann privat per DM gekommen sein.
+        NSString *keep = accepted && !pic.length ? [i.store picForContact:event.pubkey] : nil;
+        BOOL newer = [i.store setContactProfile:event.pubkey pname:name pic:(accepted ? (pic.length ? pic : keep) : nil) createdAt:event.createdAt sameAgain:fill];
+        if (newer && accepted) [i.store setAbout:about forContact:event.pubkey];   // von Anfragen nur der Name
+        changed |= newer;
     }
     if (!changed) return;
     [self notify:MeshMessagesChangedNotification];

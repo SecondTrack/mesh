@@ -11,6 +11,7 @@
 static const CGFloat kRowHeight = 30, kCardPad = 10, kButtonHeight = 44;
 
 @implementation WordsSetupViewController {
+    UILabel *_initials;   // Merkwort aus den Anfangsbuchstaben
     NSUInteger _count;
     NSString *_language;       // Sprache der Wörter (de/en), umschaltbar oben rechts
     UIButton *_languageBtn;
@@ -55,7 +56,7 @@ static const CGFloat kRowHeight = 30, kCardPad = 10, kButtonHeight = 44;
 - (void)buildShowPage {
     CGFloat W = _showPage.bounds.size.width, H = _showPage.bounds.size.height, y = 12;
     UILabel *intro = [MeshControls labelWithFrame:CGRectMake(20, y, W - 40, 46) font:[MeshTheme timeFont] color:[MeshTheme muted]];
-    intro.text = L(@"Write these words down on paper, in this order. Without them nobody gets in, not even you. Never store them on a phone or computer.");
+    intro.text = L(@"First memorise the green initials as one word, then word by word. Also keep them on paper, never on a phone. Without them nobody gets in.");
     intro.numberOfLines = 3;
     [_showPage addSubview:intro];
     y += 52;
@@ -69,6 +70,12 @@ static const CGFloat kRowHeight = 30, kCardPad = 10, kButtonHeight = 44;
     bits.text = LF(@"≈ %d bit · each word 1 of 7776", (int)lround([MeshPassphrase bitsForWords:_count]));
     bits.textAlignment = NSTextAlignmentCenter;
     [_showPage addSubview:bits];
+    y += 20;
+
+    // Merkhilfe: die Anfangsbuchstaben als ein Wort (in roll gesetzt)
+    _initials = [MeshControls labelWithFrame:CGRectMake(20, y, W - 40, 22) font:[MeshTheme monoBigFont] color:[MeshTheme accent]];
+    _initials.textAlignment = NSTextAlignmentCenter;
+    [_showPage addSubview:_initials];
 
     CGFloat by = H - 14 - kButtonHeight;
     [_showPage addSubview:[MeshControls primaryButtonWithFrame:CGRectMake(16, by, W - 32, kButtonHeight)
@@ -81,7 +88,7 @@ static const CGFloat kRowHeight = 30, kCardPad = 10, kButtonHeight = 44;
 - (void)buildConfirmPage {
     CGFloat W = _confirmPage.bounds.size.width, y = 12;
     UILabel *intro = [MeshControls labelWithFrame:CGRectMake(20, y, W - 40, 32) font:[MeshTheme timeFont] color:[MeshTheme muted]];
-    intro.text = L(@"Type the words from your paper to check them, with spaces in between.");
+    intro.text = L(@"Type the words from memory to check them, with spaces in between.");
     intro.numberOfLines = 2;
     [_confirmPage addSubview:intro];
     y += 38;
@@ -134,6 +141,13 @@ static const CGFloat kRowHeight = 30, kCardPad = 10, kButtonHeight = 44;
 
 #pragma mark - Wörter
 
+- (NSString *)initialsWord {
+    NSMutableString *m = [NSMutableString string];
+    for (NSString *w in _words)
+        if (w.length) [m appendString:[[w substringWithRange:[w rangeOfComposedCharacterSequenceAtIndex:0]] uppercaseString]];
+    return m;
+}
+
 - (void)roll {
     _words = [MeshPassphrase randomWords:_count language:_language];
     if (_words.count != _count) _words = nil;   // Liste nicht lesbar: dann gibt es nichts zu bestätigen (confirm prüft)
@@ -141,6 +155,7 @@ static const CGFloat kRowHeight = 30, kCardPad = 10, kButtonHeight = 44;
     [_languageBtn setTitle:[_language isEqualToString:@"de"] ? @"English" : @"Deutsch" forState:UIControlStateNormal];
     for (UIView *v in [_card.subviews copy]) [v removeFromSuperview];
     CGFloat w = _card.bounds.size.width;
+    _initials.text = [self initialsWord];
     for (NSUInteger i = 0; i < _words.count; i++) {
         CGFloat y = kCardPad + i * kRowHeight;
         UILabel *n = [MeshControls labelWithFrame:CGRectMake(14, y, 30, kRowHeight) font:[MeshTheme monoFont] color:[MeshTheme faint]];
@@ -148,6 +163,13 @@ static const CGFloat kRowHeight = 30, kCardPad = 10, kButtonHeight = 44;
         [_card addSubview:n];
         UILabel *word = [MeshControls labelWithFrame:CGRectMake(44, y, w - 58, kRowHeight) font:[MeshTheme monoBigFont] color:[MeshTheme ink]];
         word.text = _words[i];
+        // Anfangsbuchstabe grün: zusammen ergeben sie das Merkwort darunter (attributedText erst ab iOS 6)
+        if ([_words[i] length] && [word respondsToSelector:@selector(setAttributedText:)]) {
+            NSMutableAttributedString *a = [[NSMutableAttributedString alloc] initWithString:_words[i]];
+            NSRange first = [_words[i] rangeOfComposedCharacterSequenceAtIndex:0];
+            [a addAttribute:NSForegroundColorAttributeName value:[MeshTheme accent] range:first];
+            word.attributedText = a;
+        }
         [_card addSubview:word];
     }
 }

@@ -1,4 +1,5 @@
 #import "ChatViewController.h"
+#import "VoiceEffectViewController.h"
 #import "MeshScreen.h"
 #import "MeshCaps.h"
 #import "MeshAvatarView.h"
@@ -12,6 +13,7 @@
 #import "MeshGlyphs.h"
 #import "PeerProfileViewController.h"
 #import "MeshImageViewer.h"
+#import "MeshMediaViewer.h"
 #import "MeshVoice.h"
 #import "MeshPopup.h"
 #import "MeshL10n.h"
@@ -27,6 +29,13 @@
 #import "MeshAttachMenu.h"
 #import "MeshFileViewer.h"
 #import "MeshVideoCodec.h"
+#import "MeshGalleryViewController.h"
+#import "MeshNotifications.h"
+
+static const long long kDividerRow = -1;      // Hinweiszeile "Neue Nachrichten" (keine Datenbankzeile)
+static const CGFloat kStripRow = 26;          // Zeilen unter dem Kopf: offline, Selbstlöschen
+static const NSUInteger kPage = 80;           // so viele Nachrichten je Laden (Öffnen, Hochscrollen)
+static const NSUInteger kJumpMax = 1000;      // Zitat antippen lädt höchstens so viele (jede kostet Entschlüsseln und Messen)
 
 @interface ChatViewController () <MeshVoiceDelegate, MeshChatInputBarDelegate>
 @end
@@ -40,6 +49,7 @@
     NSMutableSet *_thumbPending;        // rowIds, deren Vorschaubild gerade entsteht
     NSMutableSet *_imgPending;          // rowIds, deren Bild gerade im Hintergrund dekodiert wird
     NSMutableDictionary *_quotes;       // cmid -> @[Autor, Zeile] der zitierten Nachricht, je Neuladen
+    NSArray *_media;                    // Bilder und Videos fürs Vollbild (Galerie-Reihenfolge), je Neuladen
     NSUInteger _limit;                  // so viele der neuesten Nachrichten sind geladen (wächst beim Hochscrollen)
     NSMutableDictionary *_heights;      // Zeilenhöhe je Nachricht (rowId, Reaktionen, Art, Breite) – Messen kostet am iPod viel
     BOOL _loadingOlder;
@@ -63,6 +73,11 @@
     NSDate    *_playStartDate;
     int        _playDur;
     BOOL       _stale;        // Nachrichten haben sich geändert, während der Chat verdeckt war
+
+    long long  _readAt, _openedAt;   // beim Öffnen: bis hier war gelesen / Zeitpunkt (für die Trennlinie)
+    BOOL       _initialScroll;       // erstes Laden: zur Trennlinie statt ans Ende
+    CGFloat    _headH;
+    UIButton  *_offlineRow, *_timerRow;   // unter dem Kopf
 }
 
 #pragma mark - Lebenszyklus
@@ -86,6 +101,7 @@
     [self mesh_setAvoidsKeyboard:NO];   // die Eingabeleiste rückt selbst mit der Tastatur
     CGFloat W = self.view.bounds.size.width, H = self.view.bounds.size.height;
     CGFloat top = [MeshTheme topInset], headH = top + 52, inH = [MeshChatInputBar height];
+    _headH = headH;
 
     // Kopf: Zurück, Avatar (antippen: groß), Name (antippen: Kontaktprofil), Verifiziert-Schild
     MeshPageHeader *header = [[MeshPageHeader alloc] initWithWidth:W height:headH target:self back:@selector(mesh_goBack)];
@@ -116,11 +132,21 @@
     [self updateBadge];
     [self updateTitle];
 
+    // Unter dem Kopf wie bei Android: ohne Verbindung ein Hinweis, mit Selbstlöschen die Dauer (antippen: ändern)
+    _offlineRow = [self stripRowWithColor:[UIColor colorWithRed:1.0f green:0x7A / 255.0f blue:0x33 / 255.0f alpha:0.16f] text:[MeshTheme ink]];
+    _offlineRow.userInteractionEnabled = NO;
+    [_offlineRow setImage:[MeshGlyphs icon:@"alert" color:[MeshTheme ink] size:14] forState:UIControlStateNormal];
+    _timerRow = [self stripRowWithColor:[MeshTheme surface] text:[MeshTheme muted]];
+    [_timerRow setImage:[MeshGlyphs icon:@"timer" color:[MeshTheme muted] size:14] forState:UIControlStateNormal];
+    [_timerRow addTarget:self action:@selector(changeTimer) forControlEvents:UIControlEventTouchUpInside];
+
     _table = [[UITableView alloc] initWithFrame:CGRectMake(0, headH, W, H - headH - inH) style:UITableViewStylePlain];
     _table.backgroundColor = [MeshTheme bg];
     _table.separatorStyle = UITableViewCellSeparatorStyleNone;
     _table.dataSource = self; _table.delegate = self;
     [self.view addSubview:_table];
+    [self.view addSubview:_offlineRow];
+    [self.view addSubview:_timerRow];
 
     _baseInputY = H - inH;
     _inputBar = [[MeshChatInputBar alloc] initWithFrame:CGRectMake(0, _baseInputY, W, inH)];
@@ -141,6 +167,54 @@
     tap.cancelsTouchesInView = NO; [_table addGestureRecognizer:tap];
     // Lang-drücken auf eine Nachricht: Reaktionen, Antworten, Kopieren, Löschen.
     [_table addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)]];
+    [self updateStrip];
+}
+
+- (UIButton *)stripRowWithColor:(UIColor *)bg text:(UIColor *)fg {
+    UIButton *b = [UIButton buttonWithType:UIButtonTypeCustom];
+    b.backgroundColor = bg;
+    b.titleLabel.font = [MeshTheme timeFont];
+    [b setTitleColor:fg forState:UIControlStateNormal];
+    b.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeft;
+    b.contentEdgeInsets = UIEdgeInsetsMake(0, 14, 0, 10);
+    b.titleEdgeInsets = UIEdgeInsetsMake(0, 6, 0, 0);
+    b.hidden = YES;
+    return b;
+}
+
+// Zeilen unter dem Kopf ein- oder ausblenden, die Liste rückt nach.
+- (void)updateStrip {
+    if (!_table) return;
+    MeshSession *s = [MeshSession shared];
+    CGFloat W = self.view.bounds.size.width, y = _headH;
+    _offlineRow.hidden = s.anyRelayConnected;
+    if (!_offlineRow.hidden) {
+        [_offlineRow setTitle:(s.usesTor && !s.torReady) ? L(@"Connecting to Tor… messages are sent once connected.")
+                                                         : L(@"Offline – messages are sent once connected.") forState:UIControlStateNormal];
+        _offlineRow.frame = CGRectMake(0, y, W, kStripRow);
+        y += kStripRow;
+    }
+    BOOL fromSent = NO;
+    int timer = [s timerFor:_peerHex fromSent:&fromSent];
+    _timerRow.hidden = timer == 0;
+    if (timer) {
+        [_timerRow setTitle:fromSent ? LF(@"Messages disappear %@ after sending", [MeshFormat timer:timer])
+                                     : LF(@"Messages disappear %@ after reading", [MeshFormat timer:timer]) forState:UIControlStateNormal];
+        _timerRow.frame = CGRectMake(0, y, W, kStripRow);
+        y += kStripRow;
+    }
+    CGRect t = _table.frame;
+    if (t.origin.y == y) return;
+    BOOL bottom = [self nearBottom];
+    t.origin.y = y;
+    _table.frame = t;
+    [self layoutBottom];   // Höhe der Liste
+    if (bottom) [self scrollToBottom];
+}
+
+- (void)changeTimer {
+    MESH_WEAK ChatViewController *weakSelf = self;
+    [MeshChatMenu chooseTimerFor:_peerHex changed:^{ [weakSelf updateBadge]; }];
 }
 
 - (void)viewDidLoad {
@@ -156,12 +230,17 @@
                                                  name:UIKeyboardWillShowNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillHide:)
                                                  name:UIKeyboardWillHideNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStrip)
+                                                 name:MeshConnectionChangedNotification object:nil];
+    _readAt = [[MeshSession shared] readAtIn:_peerHex];
+    _openedAt = (long long)[[NSDate date] timeIntervalSince1970];
     [self reload];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [[MeshSession shared] setOpenChat:_peerHex];   // startet die Uhren gelesener Nachrichten
+    [[MeshSession shared] markReadIn:_peerHex];
     [self updateBadge];   // z.B. nach Verifizieren im Kontakt-Profil
     if (_stale) [self reload];
     else [self updateTitle];
@@ -177,6 +256,7 @@
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
     [[MeshSession shared] setOpenChat:nil];
+    [[MeshSession shared] markReadIn:_peerHex];   // auch, was während des Lesens kam
     [self stopMedia];
 }
 
@@ -266,21 +346,37 @@
     else if (!audio.length) [MeshPopup info:L(@"Recording too short")];
 }
 
-// Langes Drücken auf den Aktionsknopf: Stimmeffekt wählen.
+// Langes Drücken auf den Aktionsknopf: Stimmverzerrer-Seite öffnen.
 - (void)inputBarHeldAction:(MeshChatInputBar *)bar {
     if (_voice.recording) return;
-    NSArray *effects = [MeshVoiceSettings allEffects];
-    [MeshPopup sheet:L(@"Voice effect") options:[MeshVoiceSettings effectLabels] destructiveIndex:-1 handler:^(NSInteger idx) {
-        if (idx >= 0) {
-            [MeshVoiceSettings setCurrentEffect:effects[idx]];
-            [MeshPopup info:LF(@"Voice effect: %@", [MeshVoiceSettings effectLabel:effects[idx]])];
-        }
-    }];
+    [self.navigationController pushViewController:[[VoiceEffectViewController alloc] init] animated:YES];
 }
 
 #pragma mark - Wiedergabe
 
-- (void)voicePlaybackFinished { _playingRowId = 0; [self stopPlayTimer]; [_table reloadData]; }
+// Zu Ende gehört: folgt direkt eine Sprachnachricht des Kontakts, spielt sie gleich weiter (wie Android).
+- (void)voicePlaybackFinished {
+    long long done = _playingRowId;
+    _playingRowId = 0;
+    [self stopPlayTimer];
+    [_table reloadData];
+    NSUInteger i = [_messages indexOfObjectPassingTest:^BOOL(MeshMessage *m, NSUInteger idx, BOOL *stop) { return m.rowId == done; }];
+    for (NSUInteger j = (i == NSNotFound ? _messages.count : i + 1); j < _messages.count; j++) {
+        MeshMessage *next = _messages[j];
+        if (next.kind == MeshPayloadNotice) continue;
+        if (next.kind == MeshPayloadVoice && !next.fromMe && [self mayShowMediaOf:next]) [self playVoice:next];
+        break;
+    }
+}
+
+- (void)playVoice:(MeshMessage *)m {
+    [_voice play:[[MeshSession shared] mediaOf:m]];
+    _playingRowId = m.rowId;
+    _playDur = MAX(1, [MeshPayload parse:m.content].seconds);
+    _playStartDate = [NSDate date];
+    [self startPlayTimer];
+    [_table reloadData];
+}
 
 - (void)startPlayTimer {
     [self stopPlayTimer];
@@ -347,7 +443,11 @@
 - (void)openChatMenu {
     [_inputBar endEditing];
     MESH_WEAK ChatViewController *weakSelf = self;
-    [MeshChatMenu showForPeer:_peerHex changed:^{ [weakSelf updateBadge]; }];
+    [MeshChatMenu showForPeer:_peerHex media:^{ [weakSelf openGallery]; } changed:^{ [weakSelf updateBadge]; }];
+}
+
+- (void)openGallery {
+    [self.navigationController pushViewController:[[MeshGalleryViewController alloc] initWithPeer:_peerHex] animated:YES];
 }
 
 - (void)updateTitle {
@@ -366,12 +466,6 @@
 
 // Bilder werden erst für sichtbare Zeilen aus der DB geladen und begrenzt gecacht.
 // Entschlüsseln (Store) auf dem Main-Thread, Dekodieren im Hintergrund: Öffnen und Scrollen ruckeln nicht.
-- (UIImage *)imageForMessage:(MeshMessage *)m {
-    id hit = [_imgCache objectForKey:@(m.rowId)];
-    if (hit) return hit == [NSNull null] ? nil : hit;
-    return [self mayShowMediaOf:m] ? [self decodeNow:m] : nil;
-}
-
 // Für Zellen: fehlt das Bild noch, nil zurück und im Hintergrund dekodieren; die Zeile lädt danach neu.
 - (UIImage *)cachedImageFor:(MeshMessage *)m loading:(BOOL *)loading {
     NSNumber *k = @(m.rowId);
@@ -406,12 +500,7 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     [_imgCache removeAllObjects];
     [_thumbCache removeAllObjects];
     [_fileCache removeAllObjects];
-}
-
-- (UIImage *)decodeNow:(MeshMessage *)m {
-    UIImage *img = [MeshImageCodec imageFromData:[[MeshSession shared] mediaOf:m] formats:MeshImageJPEG];
-    if (img) [_imgCache setObject:img forKey:@(m.rowId) cost:pixelCost(img)];
-    return img;
+    _media = nil;
 }
 
 - (void)imageReady:(UIImage *)img row:(long long)rowId {
@@ -442,14 +531,9 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     }];
 }
 
-// Name, Art und Größe einer Datei; dafür wird die Nachricht einmal ganz entschlüsselt.
-// Videos erscheinen als Kachel (wie Android), andere Dateien als Zeile. Ob Video, steht im Kopf des
-// gespeicherten Inhalts ("<SOH>mesh:file:Name<SOH>video/…"), ohne die Daten zu entschlüsseln.
-- (BOOL)isVideo:(MeshMessage *)m {
-    NSRange nl = [m.content rangeOfString:@"\n"];
-    NSString *head = nl.location == NSNotFound ? m.content : [m.content substringToIndex:nl.location];
-    return [head hasSuffix:@"\1video/mp4"];
-}
+// Videos erscheinen als Kachel (wie Android), andere Dateien als Zeile. Ob Video, steht nur im
+// verschlüsselten Inhalt: einmal nachsehen, danach merkt es sich die Datenbank (MeshSession isVideo:).
+- (BOOL)isVideo:(MeshMessage *)m { return [[MeshSession shared] isVideo:m]; }
 
 // Vorschaubild: aus dem Zwischenspeicher, sonst im Hintergrund erzeugen und die Zeile neu laden.
 // Nur für eigene Videos: ein empfangenes MP4 läse sonst der Video-Teil von iOS 6 (mit bekannten
@@ -521,8 +605,10 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     NSArray *card = [self cardOf:m];
     NSString *pk = card[1];
     MeshSession *s = [MeshSession shared];
-    if (m.fromMe || !pk.length) return;
+    if (!pk.length || [pk isEqualToString:[s myPubkeyHex]]) return;
+    // Schon Kontakt (auch bei selbst geschickten Karten): gleich in den Chat mit der Person
     if ([card[2] boolValue]) { [self openChatWith:pk]; return; }
+    if (m.fromMe) return;
     if (![s isAccepted:_peerHex]) { [self askAcceptPeer]; return; }
     NSString *npub = [s npubFor:pk];
     NSString *key = npub.length > 20 ? [NSString stringWithFormat:@"%@…%@", [npub substringToIndex:12], [npub substringFromIndex:npub.length - 6]] : npub;
@@ -533,6 +619,16 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
         if (![s addContact:[MeshPayload parse:m.content].code name:card[0]]) { [MeshPopup info:L(@"This QR code doesn't contain a contact key.")]; return; }
         [self openChatWith:pk];
     }];
+}
+
+// Bild antippen: Vollbild mit allen Bildern und Videos des Chats, wischen wie in der Galerie
+// (dort neueste zuerst, hier in Chat-Reihenfolge: nach links ältere).
+- (void)openViewerAt:(MeshMessage *)m {
+    if (!_media) _media = [[[MeshGalleryViewController itemsFor:_peerHex] reverseObjectEnumerator] allObjects];
+    NSArray *media = _media;
+    NSUInteger i = [media indexOfObjectPassingTest:^BOOL(MeshMessage *x, NSUInteger idx, BOOL *stop) { return x.rowId == m.rowId; }];
+    if (i == NSNotFound) { media = @[m]; i = 0; }
+    [self mesh_present:[[MeshMediaViewer alloc] initWithItems:media index:i peer:_peerHex] animated:YES];
 }
 
 - (void)openChatWith:(NSString *)pk {
@@ -546,14 +642,109 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     [self updateTitle];
     [self updateBadge];   // der Kontakt kann den Timer geändert haben
     BOOL wasAtBottom = [self nearBottom];
-    if (!_limit) _limit = 80;
+    // Unten angekommen: wieder nur die neuesten laden, sonst entschlüsselt jedes Neuladen alles Nachgeladene
+    if (!_limit || (wasAtBottom && _initialScroll)) _limit = kPage;
     if (!_heights) _heights = [NSMutableDictionary dictionary];
     int acc = [[MeshSession shared] isAccepted:_peerHex] ? 2 : 1;
     if (acc != _acceptedState) { [_heights removeAllObjects]; _acceptedState = acc; }
-    _messages = [[MeshSession shared] messagesWith:_peerHex limit:_limit];
+    _messages = [self withDivider:[[MeshSession shared] messagesWith:_peerHex limit:_limit]];
     [_quotes removeAllObjects];
+    _media = nil;
     [_table reloadData];
+    if (!_initialScroll) {
+        _initialScroll = YES;
+        // Beim Öffnen mit Ungelesenem: die Trennlinie oben zeigen statt ans Ende zu springen
+        NSUInteger d = [_messages indexOfObjectPassingTest:^BOOL(MeshMessage *m, NSUInteger i, BOOL *stop) { return m.rowId == kDividerRow; }];
+        if (d != NSNotFound && d > 0) {
+            [_table scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:(NSInteger)d inSection:0] atScrollPosition:UITableViewScrollPositionTop animated:NO];
+            return;
+        }
+    }
     if (wasAtBottom) [self scrollToBottom];   // nur ans Ende, wenn man eh unten war (kein Zurückspringen)
+}
+
+// Trennlinie "N neue Nachrichten" vor der ersten Nachricht des Kontakts, die beim Öffnen noch
+// ungelesen war (wie Android). Eine Hinweiszeile ohne Datenbankzeile; sie bleibt, solange der Chat offen ist.
+- (NSArray *)withDivider:(NSArray *)list {
+    if (_readAt <= 0) return list;   // erster Start nach dem Update: kein Stand bekannt
+    NSUInteger first = NSNotFound, n = 0;
+    for (NSUInteger i = 0; i < list.count; i++) {
+        MeshMessage *m = list[i];
+        if (m.fromMe || m.kind == MeshPayloadNotice || m.ts <= _readAt || m.ts > _openedAt) continue;
+        if (first == NSNotFound) first = i;
+        n++;
+    }
+    if (first == NSNotFound) return list;
+    MeshMessage *d = [[MeshMessage alloc] init];
+    d.rowId = kDividerRow;
+    d.kind = MeshPayloadNotice;
+    d.content = n == 1 ? L(@"1 new message") : LF(@"%lu new messages", (unsigned long)n);
+    NSMutableArray *out = [list mutableCopy];
+    [out insertObject:d atIndex:first];
+    return out;
+}
+
+// Geladene Datenbankzeilen (ohne die Trennlinie).
+- (NSUInteger)rowCount {
+    NSUInteger n = 0;
+    for (MeshMessage *m in _messages) if (m.rowId != kDividerRow) n++;
+    return n;
+}
+
+// count ältere Nachrichten vor die geladenen setzen: nur diese werden entschlüsselt, gemessene Höhen bleiben.
+- (void)prependOlder:(NSUInteger)count {
+    NSMutableArray *rows = [NSMutableArray arrayWithCapacity:_messages.count + count];
+    for (MeshMessage *m in _messages) if (m.rowId != kDividerRow) [rows addObject:m];
+    NSUInteger had = rows.count;
+    NSArray *older = [[MeshSession shared] messagesWith:_peerHex before:rows.firstObject limit:count];
+    [rows replaceObjectsInRange:NSMakeRange(0, 0) withObjectsFromArray:older];
+    _limit = had + count;   // weniger gekommen als verlangt: es gibt keine älteren mehr
+    _messages = [self withDivider:rows];
+}
+
+- (NSUInteger)indexOfKey:(NSString *)key {
+    return [_messages indexOfObjectPassingTest:^BOOL(MeshMessage *m, NSUInteger i, BOOL *stop) {
+        return m.rowId != kDividerRow && ([m.cmid isEqualToString:key] || [m.eventId isEqualToString:key]);
+    }];
+}
+
+// Zitat antippen: zur zitierten Nachricht scrollen und sie kurz aufleuchten lassen; ältere werden nachgeladen.
+// Wie weit zurück, zählt die Datenbank: einmal nachladen statt in Runden alles neu zu entschlüsseln.
+- (void)jumpToMessage:(NSString *)key {
+    NSUInteger i = [self indexOfKey:key];
+    if (i == NSNotFound) {
+        NSUInteger need = [[MeshSession shared] messageCountFrom:key in:_peerHex], have = [self rowCount];
+        if (!need) { [MeshPopup info:L(@"The quoted message is no longer there.")]; return; }
+        // Ein paar ältere dazu: sonst stünde das Ziel ganz oben, und das Scrollen dorthin löste gleich
+        // das Nachladen aus (das die Animation unterbricht).
+        NSUInteger want = MIN(need + 20, kJumpMax);
+        if (want > have) {
+            [self prependOlder:want - have];
+            [_table reloadData];
+        }
+        i = [self indexOfKey:key];
+        if (i == NSNotFound) {   // weiter zurück als kJumpMax: bis zur ältesten geladenen
+            if (_messages.count)
+                [_table scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0] atScrollPosition:UITableViewScrollPositionTop animated:YES];
+            return;
+        }
+    }
+    [_table scrollToRowAtIndexPath:[NSIndexPath indexPathForRow:(NSInteger)i inSection:0] atScrollPosition:UITableViewScrollPositionMiddle animated:YES];
+    MESH_WEAK ChatViewController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ [weakSelf glowMessage:key]; });
+}
+
+// Zeile erst jetzt suchen: in den 0,4 s kann ein Neuladen die Zeilen verschoben haben.
+- (void)glowMessage:(NSString *)key {
+    NSUInteger i = [self indexOfKey:key];
+    UITableViewCell *c = i == NSNotFound ? nil : [_table cellForRowAtIndexPath:[NSIndexPath indexPathForRow:(NSInteger)i inSection:0]];
+    if (!c) return;
+    UIView *glow = [[UIView alloc] initWithFrame:c.contentView.bounds];
+    glow.backgroundColor = [[MeshTheme accent] colorWithAlphaComponent:0.18f];
+    glow.userInteractionEnabled = NO;
+    [c.contentView addSubview:glow];
+    [UIView animateWithDuration:0.9 delay:0.3 options:0 animations:^{ glow.alpha = 0; }
+                     completion:^(BOOL done) { [glow removeFromSuperview]; }];
 }
 
 // YES, wenn die Tabelle nahe am unteren Ende steht (dann darf auto-gescrollt werden).
@@ -564,13 +755,12 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     return dist < 90;
 }
 
-// Ganz oben angekommen: die nächsten 80 älteren Nachrichten nachladen, die Ansicht bleibt an derselben Stelle
+// Ganz oben angekommen: die nächsten 80 älteren Nachrichten davorsetzen, die Ansicht bleibt an derselben Stelle
 - (void)scrollViewDidScroll:(UIScrollView *)sv {
-    if (sv != _table || _loadingOlder || sv.contentOffset.y > 40 || _messages.count < _limit) return;
+    if (sv != _table || _loadingOlder || sv.contentOffset.y > 40 || [self rowCount] < _limit) return;
     _loadingOlder = YES;
     CGFloat oldH = sv.contentSize.height, oldY = sv.contentOffset.y;
-    _limit += 80;
-    _messages = [[MeshSession shared] messagesWith:_peerHex limit:_limit];
+    [self prependOlder:kPage];
     [_table reloadData];
     [_table layoutIfNeeded];
     sv.contentOffset = CGPointMake(0, oldY + (sv.contentSize.height - oldH));
@@ -589,6 +779,7 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
     MeshSession *s = [MeshSession shared];
     _verifiedBadge.image = [s isVerified:_peerHex] ? [MeshGlyphs icon:@"shield" color:[MeshTheme accent] size:22] : nil;
     _timerBadge.image = [s timerFor:_peerHex fromSent:NULL] ? [MeshGlyphs icon:@"timer" color:[MeshTheme muted] size:20] : nil;
+    [self updateStrip];
 }
 
 #pragma mark - Tastatur
@@ -623,6 +814,7 @@ static NSUInteger pixelCost(UIImage *img) { return (NSUInteger)(img.size.width *
 // Größe oder Text (auch der Platzhalter für Bilder, die nicht gezeigt werden, Dateien und Kontakte).
 - (MeshPayloadKind)bubbleFor:(MeshMessage *)m imageSize:(CGSize *)size text:(NSString **)text {
     MeshPayloadKind kind = m.kind;
+    if (m.rowId == kDividerRow) { *text = m.content; return MeshPayloadNotice; }
     if (kind == MeshPayloadNotice) { *text = [MeshFormat notice:m.content peer:[[MeshSession shared] displayNameFor:_peerHex]]; return kind; }
     if (kind == MeshPayloadVoice) return kind;
     if (kind == MeshPayloadImage && [self imageSize:size ofMessage:m]) return kind;
@@ -696,8 +888,15 @@ static NSString *reactionsOf(MeshMessage *m) {
     MeshBubbleCell *cell = [t dequeueReusableCellWithIdentifier:@"bubble"];
     if (!cell) cell = [[MeshBubbleCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"bubble"];
     NSString *qa = nil, *qt = nil;
-    if ([self quoteFor:m author:&qa text:&qt]) [cell setQuoteAuthor:qa text:qt];
-    else [cell setQuoteAuthor:nil text:nil];
+    if ([self quoteFor:m author:&qa text:&qt]) {
+        [cell setQuoteAuthor:qa text:qt];
+        NSString *key = m.replyTo;
+        MESH_WEAK ChatViewController *weakSelf = self;
+        cell.quoteTapped = ^{ [weakSelf jumpToMessage:key]; };
+    } else {
+        [cell setQuoteAuthor:nil text:nil];
+        cell.quoteTapped = nil;
+    }
     [cell setReactions:reactionsOf(m)];
     switch (kind) {
         case MeshPayloadVoice:
@@ -748,20 +947,15 @@ static NSString *reactionsOf(MeshMessage *m) {
     }
     if (kind == MeshPayloadContact) { [self offerContactCard:m]; return; }
     if (kind == MeshPayloadVoice) {                      // Sprachnachricht antippen -> abspielen/stoppen
-        if (m.rowId == _playingRowId) { [_voice stop]; _playingRowId = 0; [self stopPlayTimer]; }
-        else {
-            [_voice play:[[MeshSession shared] mediaOf:m]];
-            _playingRowId = m.rowId;
-            _playDur = MAX(1, [MeshPayload parse:m.content].seconds);
-            _playStartDate = [NSDate date];
-            [self startPlayTimer];
-        }
-        [t reloadData];
+        if (m.rowId == _playingRowId) { [_voice stop]; _playingRowId = 0; [self stopPlayTimer]; [t reloadData]; }
+        else [self playVoice:m];
         return;
     }
     if (kind == MeshPayloadImage) {
-        UIImage *img = [self imageForMessage:m];   // Bild antippen -> Vollbild
-        if (img) [self mesh_present:[[MeshImageViewer alloc] initWithImage:img] animated:YES];
+        // Nicht hier dekodieren (blockierte den Main-Thread): das Vollbild dekodiert selbst im Hintergrund.
+        CGSize size;
+        if ([_imgCache objectForKey:@(m.rowId)] == [NSNull null] || ![self imageSize:&size ofMessage:m]) return;   // nicht darstellbar
+        [self openViewerAt:m];
     }
 }
 

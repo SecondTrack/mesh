@@ -46,12 +46,28 @@ int main(void) { @autoreleasepool {
     check([MeshAudioCodec aacToPcm:[aac subdataWithRange:NSMakeRange(0, aac.length / 3)] maxSeconds:60].length < back.length,
           "truncated m4a does not crash");
 
+    // Verdichtet: kein free-Polster, kein udta, Offsets stimmen (dekodiert gleich lang)
+    check(memmem(aac.bytes, aac.length, "free", 4) == NULL && memmem(aac.bytes, aac.length, "udta", 4) == NULL, "m4a compacted");
+    check(aac.length < 12000, "3 s tone well under 12 KB");
+    check(MeshCompactM4A(aac) != nil && [MeshCompactM4A(aac) isEqual:aac], "compaction idempotent");
+    check(MeshCompactM4A(junk) == nil, "compaction rejects garbage");
+
+    // Android (Voice.kt bis 2026-10): rohes ADTS, Kopf FF F9 (MPEG-2, AAC-LC, 16 kHz, mono) – mit
+    // afconvert erzeugt und mit exakt Androids addAdts-Köpfen neu verpackt (tests/fixtures).
+    NSData *android = [NSData dataWithContentsOfFile:@"tests/fixtures/android_voice.aac"];
+    check(android.length > 0 && ((const uint8_t *)android.bytes)[1] == 0xF9, "android fixture present");
+    check([MeshMediaCheck isAcceptableAudio:android], "android adts passes structure check");
+    NSData *apcm = [MeshAudioCodec aacToPcm:android maxSeconds:60];
+    check(near(apcm.length / 2, 3 * MeshAudioSampleRate, 0.1) && peak(apcm) > 4000, "android adts decodes");
+
     // Effekte: Tonhöhe über Resampling ändert die Länge, Anonymisieren nicht
-    check(near([MeshAudioDSP applyEffect:tone effect:@"high"].length / 2, n / 1.45, 0.01), "high shortens");
-    check(near([MeshAudioDSP applyEffect:tone effect:@"deep"].length / 2, n / 0.72, 0.01), "deep lengthens");
+    // Wie in der Android-App: jeder Effekt behält die Länge exakt und verändert das Signal
     check([[MeshAudioDSP applyEffect:tone effect:@"none"] isEqual:tone], "none unchanged");
-    check([MeshAudioDSP applyEffect:tone effect:@"robot"].length == tone.length, "robot keeps length");
-    check(near([MeshAudioDSP applyEffect:tone effect:@"anonym"].length / 2, n, 0.05), "anonym keeps tempo");
+    for (NSString *fx in @[@"anonym", @"high", @"chipmunk", @"chipmunk_anon", @"deep", @"robot", @"alien"]) {
+        NSData *o = [MeshAudioDSP applyEffect:tone effect:fx];
+        check(o.length == tone.length, [[fx stringByAppendingString:@" keeps length"] UTF8String]);
+        check(o && ![o isEqual:tone], [[fx stringByAppendingString:@" changes signal"] UTF8String]);
+    }
 
     // Aufbereitung: gleiche Länge, auf ~-3 dBFS normalisiert, Tiefpass dämpft hohe Töne
     NSData *proc = [MeshAudioDSP process:tone noise:0 hp:90 lp:7000 presence:0 gain:1];

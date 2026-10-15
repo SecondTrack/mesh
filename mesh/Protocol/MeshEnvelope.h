@@ -7,7 +7,8 @@
 //
 // Statt einer Nachricht kann der Inhalt auch eine Steueranweisung sein, die nie als Nachricht
 // erscheint: Reaktion (\1mesh:rx:<ziel>|<emoji>), Löschen für alle (\1mesh:del:<ziel>), Chat leeren
-// (\1mesh:clr:), Selbstlösch-Timer (\1mesh:ttls:<s>|<read|sent>), Handshake (mesh:hi:) und Teile
+// (\1mesh:clr:), Selbstlösch-Timer (\1mesh:ttls:<s>|<read|sent>), Handshake (mesh:hi:), Profilbild
+// (\1mesh:pic:<Base64-JPEG>; Android veröffentlicht sein Bild nicht auf Relays) und Teile
 // großer Dateien (\1mesh:fc:…). <ziel> ist die cmid einer Nachricht, bei alten die Event-ID.
 // Nur diese Klasse kennt die Marker.
 #import <Foundation/Foundation.h>
@@ -20,6 +21,7 @@ typedef NS_ENUM(NSInteger, MeshEnvelopeType) {
     MeshEnvelopeTimer,
     MeshEnvelopeHello,
     MeshEnvelopeFileChunk,
+    MeshEnvelopePicture,       // privates Profilbild (\1mesh:pic:<Base64-JPEG>), leer = entfernt
     MeshEnvelopeIgnored        // leer oder ein Steuermarker im Text: nicht anzeigen
 };
 
@@ -46,6 +48,9 @@ typedef NS_ENUM(NSInteger, MeshTimerMode) {
 @property (nonatomic, readonly) NSString *target;
 @property (nonatomic, readonly) NSString *emoji;       // @"" = Reaktion entfernt
 
+// MeshEnvelopePicture: Base64 des Bildes, @"" = Bild entfernt (Prüfung macht der Empfänger)
+@property (nonatomic, readonly) NSString *picture;
+
 // MeshEnvelopeFileChunk
 @property (nonatomic, readonly) NSString *fileId;      // 16 Hex-Zeichen
 @property (nonatomic, readonly) int chunkIndex, chunkCount;
@@ -62,6 +67,7 @@ typedef NS_ENUM(NSInteger, MeshTimerMode) {
 + (NSString *)clearChat;
 + (NSString *)timer:(int)seconds mode:(MeshTimerMode)mode;
 + (NSString *)helloWithBundle:(NSString *)bundle;
++ (NSString *)picture:(NSString *)base64;   // eigenes Profilbild an einen Kontakt, @"" = entfernt
 
 + (NSString *)newMessageId;   // 16 Hex-Zeichen (8 Zufallsbytes) wie Android
 @end

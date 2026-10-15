@@ -12,6 +12,8 @@
 - (void)messenger:(MeshMessenger *)messenger acceptedContact:(NSString *)peer;
 - (void)messengerReceivedPanic:(MeshMessenger *)messenger;                  // Codewort: alles löschen
 - (void)messenger:(MeshMessenger *)messenger received:(MeshMessage *)message from:(NSString *)peer;
+@optional
+- (void)messenger:(MeshMessenger *)messenger changedPictureOf:(NSString *)peer;   // privat geschicktes Profilbild übernommen
 @end
 
 @interface MeshMessenger : NSObject
@@ -30,6 +32,10 @@
 - (int)timerFor:(NSString *)peer fromSent:(BOOL *)fromSent;
 - (BOOL)sendPanicTrigger:(NSString *)codeword to:(NSString *)peer;   // nur das Token reist, nie das Codewort
 - (BOOL)sayHelloTo:(NSString *)peer;   // unsichtbarer Handshake nach dem Hinzufügen: eigenes Bundle
+// Eigenes Profilbild privat (verschlüsselte Steueranweisung, wie Android): nach dem Hinzufügen und Annehmen
+// an den Kontakt; nach einer Änderung an alle angenommenen Kontakte (dann auch "entfernt").
+- (BOOL)sendPictureTo:(NSString *)peer;          // nichts, wenn kein eigenes Bild
+- (void)sendPictureToAllContacts;
 
 - (void)chatOpened:(NSString *)peer;    // Uhren empfangener Nachrichten starten
 - (BOOL)deleteExpired;                  // YES, wenn etwas gelöscht wurde

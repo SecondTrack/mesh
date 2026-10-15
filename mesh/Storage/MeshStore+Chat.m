@@ -57,6 +57,25 @@
     }];
 }
 
+- (long long)readAtForChat:(NSString *)chat {
+    sqlite3_stmt *st = [self prepare:"SELECT read FROM chats WHERE chat=?"];
+    if (!st) return 0;
+    bindText(st, 1, chat);
+    long long t = sqlite3_step(st) == SQLITE_ROW ? sqlite3_column_int64(st, 0) : 0;
+    sqlite3_finalize(st);
+    return t;
+}
+
+- (void)setReadAt:(long long)time chat:(NSString *)chat {
+    [self run:"INSERT OR IGNORE INTO chats(chat) VALUES(?)" text:chat];
+    sqlite3_stmt *st = [self prepare:"UPDATE chats SET read=MAX(read, ?) WHERE chat=?"];
+    if (!st) return;
+    sqlite3_bind_int64(st, 1, time);
+    bindText(st, 2, chat);
+    sqlite3_step(st);
+    sqlite3_finalize(st);
+}
+
 - (BOOL)clearChat:(NSString *)chat at:(long long)time {
     [self deleteMessagesWhere:"chat=?1" bind:^(sqlite3_stmt *st) { bindText(st, 1, chat); }];
     [self run:"INSERT OR IGNORE INTO chats(chat) VALUES(?)" text:chat];

@@ -14,8 +14,35 @@
 #import "MeshPayload.h"
 #import "MeshHex.h"
 #import "MeshTime.h"
+#import "MeshProfile.h"
+#import "MeshBase64.h"
+#import "MeshLog.h"
 
 static const long long kMaxClockSkew = 15 * 60;   // Absender-Zeit höchstens so weit in der Zukunft
+
+// Privates Profilbild (\1mesh:pic:): höchstens so viele rohe Bytes (Android: ProfilePic.MAX_RAW). Ein
+// 256-px-Avatar mit Qualität 0,5 hat 10–20 KB. Dekodiert wird erst beim Anzeigen, über MeshImageCodec
+// (Kopfprüfung + eigener Decoder, nie ImageIO).
+static const NSUInteger kMaxPictureBytes = 64 * 1024;
+static const long long kPictureReplyWindow = 10 * 60;   // nur auf frische Bilder mit dem eigenen antworten
+
+// Base64 eines Profilbildes (auch data:-URI) -> Bytes, nur echtes JPEG/PNG bis kMaxPictureBytes. nil sonst.
+static NSData *pictureBytes(NSString *picture) {
+    NSString *b64 = picture;
+    if ([picture hasPrefix:@"data:"]) {
+        NSRange r = [picture rangeOfString:@";base64,"];
+        if (r.location == NSNotFound) return nil;
+        b64 = [picture substringFromIndex:NSMaxRange(r)];
+    }
+    if (!b64.length || b64.length > (kMaxPictureBytes + 2) / 3 * 4 + 4) return nil;
+    NSData *d = [MeshBase64 decode:b64];
+    if (!d.length || d.length > kMaxPictureBytes) return nil;
+    const uint8_t *b = d.bytes;
+    static const uint8_t png[8] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
+    BOOL jpeg = d.length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF;
+    BOOL isPng = d.length >= 8 && !memcmp(b, png, 8);
+    return (jpeg || isPng) ? d : nil;
+}
 
 // Größte Nachricht je Art (Länge des Inhalts). Android lehnt Medien über 700 000 Zeichen ab;
 // eigene Bilder sind ~60 KB, 30 s Sprache ~150 KB. Die Grenzen für Fremde stehen in MeshInboxPolicy.
@@ -34,12 +61,16 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
     MeshKeys *_keys;
     MeshInboxPolicy *_inbox;
     MeshPanic *_panic;
+    NSMutableDictionary *_pictureTs;   // Kontakt -> created_at des zuletzt übernommenen Bildes
+    NSMutableSet *_pictureReplied;     // wem schon einmal als Antwort das eigene Bild ging (kein Ping-Pong)
 }
 
 - (instancetype)initWithStore:(MeshStore *)store keys:(MeshKeys *)keys inbox:(MeshInboxPolicy *)inbox panic:(MeshPanic *)panic {
     if ((self = [super init])) {
         _store = store; _keys = keys; _inbox = inbox; _panic = panic;
         _myPubkey = [MeshHex encode:keys.xonlyPub];
+        _pictureTs = [NSMutableDictionary dictionary];
+        _pictureReplied = [NSMutableSet set];
     }
     return self;
 }
@@ -183,6 +214,43 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
     return bundle && [self sendControl:[MeshEnvelope helloWithBundle:bundle] to:peer];
 }
 
+#pragma mark - Profilbild
+
+// Eigenes Bild in Sendeform: gespeichert ist Base64-JPEG (256 px); zu Großes geht nicht mit.
+- (NSString *)ownPicture {
+    NSString *pic = [_store loadProfile].picture;
+    if (!pic.length) return @"";
+    NSData *d = pictureBytes(pic);
+    if (!d) { MeshLog(@"Profilbild: zu groß oder kein JPEG/PNG, nicht gesendet"); return nil; }
+    return [MeshBase64 encode:d];
+}
+
+- (BOOL)sendPictureTo:(NSString *)peer {
+    NSString *pic = [self ownPicture];
+    return pic.length && [self sendControl:[MeshEnvelope picture:pic] to:peer];
+}
+
+- (void)sendPictureToAllContacts {
+    NSString *pic = [self ownPicture];
+    if (!pic) return;
+    for (NSString *peer in [_store acceptedContactPubkeys]) if (![_store isBlocked:peer]) [self sendControl:[MeshEnvelope picture:pic] to:peer];
+}
+
+// Nur von angenommenen Kontakten; geprüft (Größe, JPEG/PNG), gespeichert wird das Base64.
+- (void)receivePicture:(NSString *)picture from:(NSString *)peer at:(long long)createdAt {
+    NSData *d = picture.length ? pictureBytes(picture) : nil;
+    if (picture.length && !d) return;
+    if (createdAt < [_pictureTs[peer] longLongValue]) return;   // ältere Kopie von einem Relay
+    _pictureTs[peer] = @(createdAt);
+    if ([_store setPicture:(d ? [MeshBase64 encode:d] : @"") forContact:peer]
+        && [self.delegate respondsToSelector:@selector(messenger:changedPictureOf:)])
+        [self.delegate messenger:self changedPictureOf:peer];
+    // Einmal mit dem eigenen antworten: unser erstes kam evtl., als die Gegenseite uns noch nicht angenommen hatte.
+    // (Gemerkt wird nur ein tatsächlich gesendetes: ohne eigenes Bild antwortet ein späteres.)
+    if (d && MeshNow() - createdAt < kPictureReplyWindow && ![_pictureReplied containsObject:peer]
+        && [self sendPictureTo:peer]) [_pictureReplied addObject:peer];
+}
+
 - (BOOL)sendPanicTrigger:(NSString *)codeword to:(NSString *)peer {
     NSString *token = [MeshPanic triggerFor:codeword target:peer];
     if (!token) return NO;
@@ -241,6 +309,10 @@ static NSUInteger maxContentLength(MeshPayloadKind kind) {
             if (!known) return NO;
             [_store rememberProcessed:event.eventId];
             return [self applyTimer:env.timer fromSent:env.timerMode == MeshTimerFromSent chat:peer byMe:NO];
+        case MeshEnvelopePicture:
+            [self discard:event];   // einmal angewendet, nie wieder
+            if (known && [_store isAccepted:peer]) [self receivePicture:env.picture from:peer at:event.createdAt];
+            return NO;              // keine Nachricht; die Oberfläche erfährt es über den Delegate
         case MeshEnvelopeHello:
         case MeshEnvelopeFileChunk:   // nur über die .onion der Android-App, nie über Relays
         case MeshEnvelopeIgnored:

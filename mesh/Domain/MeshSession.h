@@ -3,6 +3,7 @@
 // Meldet Datenänderungen per NSNotification an die UI.
 #import <Foundation/Foundation.h>
 #import "MeshNotifications.h"
+#import "MeshSafetyCode.h"   // MeshSafetyScan
 
 @class MeshMessage, MeshProfile, MeshPayload, MeshIdentityInfo;
 
@@ -117,7 +118,8 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 
 // Kontakte und Chats: die UI greift nur hierüber auf den Store zu.
 - (NSString *)displayNameFor:(NSString *)peerHex;          // gespeicherter Name, sonst Profilname, sonst gekürzter Key
-- (NSString *)pictureFor:(NSString *)peerHex;              // Profilbild (nil wenn keins oder Kontakt nicht angenommen)
+- (NSString *)pictureFor:(NSString *)peerHex;
+- (NSString *)aboutFor:(NSString *)peerHex;                // "Über mich" aus dem Profil (nil wenn keins oder nicht angenommen)              // Profilbild (nil wenn keins oder Kontakt nicht angenommen)
 - (BOOL)isAccepted:(NSString *)peerHex;                    // selbst hinzugefügt, angeschrieben oder bestätigt
 - (void)acceptContact:(NSString *)peerHex;                 // Bilder und Profilbild dieses Kontakts anzeigen
 - (NSString *)npubFor:(NSString *)peerHex;
@@ -125,13 +127,22 @@ typedef NS_ENUM(NSInteger, MeshSecretKind) {
 - (BOOL)usesSignalWith:(NSString *)peerHex;                // Signal-Sitzung steht (Forward Secrecy)
 - (NSString *)myContactCode;                               // mesh:<npub>?sig=<Bundle mit frischem Einmal-Schlüssel>
 - (NSString *)myStaticContactCode;                         // ohne Einmal-Schlüssel, zum Kopieren und Weitergeben
+- (NSString *)safetyCodeQRWith:(NSString *)peerHex;        // Inhalt für den QR zum Scannen (MeshSafetyCode), nil ohne Bundle
+- (MeshSafetyScan)checkSafetyScan:(NSString *)scanned with:(NSString *)peerHex;   // bei Übereinstimmung verifiziert
 - (BOOL)isVerified:(NSString *)peerHex;
 - (void)setVerified:(BOOL)verified for:(NSString *)peerHex;
 - (NSArray *)chatList;                                     // NSArray<MeshChat>, neueste zuerst
 - (NSArray *)messagesWith:(NSString *)peerHex;             // NSArray<MeshMessage>, älteste zuerst
 - (NSArray *)messagesWith:(NSString *)peerHex limit:(NSUInteger)limit;   // nur die neuesten, älteste zuerst
+- (NSArray *)messagesWith:(NSString *)peerHex before:(MeshMessage *)oldest limit:(NSUInteger)limit;   // die älteren davor, älteste zuerst
+- (NSUInteger)messageCountFrom:(NSString *)key in:(NSString *)peerHex;   // so viele neueste laden, damit key dabei ist; 0 = weg
 - (NSData *)mediaOf:(MeshMessage *)message;                // JPEG, AAC bzw. Datei, nil bei Text
-- (MeshPayload *)payloadOf:(MeshMessage *)message;         // vollständig (Dateiname, Kontaktkarte)
+- (MeshPayload *)payloadOf:(MeshMessage *)message;
+- (NSArray *)mediaWith:(NSString *)peerHex;                // Bilder und Videos für die Galerie, neueste zuerst
+- (NSUInteger)mediaCountWith:(NSString *)peerHex onlyMine:(BOOL)mine;   // Anzahl wie mediaWith + isVideo, ohne Zeilen zu laden
+- (BOOL)isVideo:(MeshMessage *)message;                    // Datei ist ein MP4-Video (einmal geprüft, dann gemerkt)
+- (long long)readAtIn:(NSString *)peerHex;                 // bis hier gelesen (Unix-Sekunden, 0 = unbekannt)
+- (void)markReadIn:(NSString *)peerHex;                    // alles bis jetzt gelesen         // vollständig (Dateiname, Kontaktkarte)
 - (MeshMessage *)message:(NSString *)key in:(NSString *)peerHex;   // per cmid/Event-ID, z.B. für Zitate
 - (void)deleteMessage:(MeshMessage *)message;              // nur lokal
 - (BOOL)deleteForEveryone:(MeshMessage *)message in:(NSString *)peerHex;   // nur eigene; auch beim Kontakt

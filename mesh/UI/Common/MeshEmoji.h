@@ -12,6 +12,7 @@
 + (BOOL)containsEmoji:(NSString *)text;
 + (UIImage *)imageForKey:(NSString *)key;         // "1f986", "1f468_200d_1f469" …; nil wenn unbekannt
 + (NSArray *)keysIn:(NSString *)text;             // Schlüssel der Emojis im Text (Tests)
++ (NSArray *)allKeys;                              // alle Schlüssel im Pack (Tastatur)
 // Wie sizeWithFont:constrainedToSize:lineBreakMode:, mit Emojis in ihrer gezeichneten Größe.
 + (CGSize)textSize:(NSString *)text font:(UIFont *)font constrainedTo:(CGSize)size;
 + (CGSize)sizeOf:(NSString *)text font:(UIFont *)font constrainedTo:(CGSize)size lines:(NSInteger)lines;

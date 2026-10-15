@@ -307,6 +307,30 @@
 - (NSString *)nameForContact:(NSString *)pubkeyHex        { return [self contact:pubkeyHex column:"name"]; }
 - (NSString *)picForContact:(NSString *)pubkeyHex         { return [self contact:pubkeyHex column:"pic"]; }
 - (NSString *)profileNameForContact:(NSString *)pubkeyHex { return [self contact:pubkeyHex column:"pname"]; }
+- (NSString *)aboutForContact:(NSString *)pubkeyHex       { return [self contact:pubkeyHex column:"about"]; }
+
+- (void)setAbout:(NSString *)about forContact:(NSString *)pubkeyHex {
+    NSString *a = [self seal:about ?: @"" context:contactContext("about", pubkeyHex)];
+    sqlite3_stmt *st = a ? [self prepare:"UPDATE contacts SET about=? WHERE pubkey=?"] : NULL;
+    if (!st) return;
+    bindText(st, 1, a); bindText(st, 2, pubkeyHex);
+    sqlite3_step(st);
+    sqlite3_finalize(st);
+}
+
+// Nur das Bild, ohne Profil-Zeitstempel (kommt per DM, nicht als kind-0). YES, wenn sich etwas geändert hat.
+- (BOOL)setPicture:(NSString *)pic forContact:(NSString *)pubkeyHex {
+    NSString *known = [self picForContact:pubkeyHex] ?: @"";
+    if ([known isEqualToString:pic ?: @""]) return NO;
+    NSString *p = [self seal:pic ?: @"" context:contactContext("pic", pubkeyHex)];
+    if (!p) return NO;
+    sqlite3_stmt *st = [self prepare:"UPDATE contacts SET pic=? WHERE pubkey=?"];
+    if (!st) return NO;
+    bindText(st, 1, p); bindText(st, 2, pubkeyHex);
+    BOOL changed = sqlite3_step(st) == SQLITE_DONE && sqlite3_changes(_db) > 0;
+    sqlite3_finalize(st);
+    return changed;
+}
 
 - (void)forgetProfileTimeOf:(NSString *)pubkeyHex {
     [self run:"UPDATE contacts SET pts=0 WHERE pubkey=?" text:pubkeyHex];
@@ -475,6 +499,89 @@ _Static_assert(MeshPayloadText == 0 && MeshPayloadNotice == 4 && MeshPayloadCont
     while (sqlite3_step(st) == SQLITE_ROW) [out insertObject:[self messageFromRow:st chat:pubkeyHex] atIndex:0];
     sqlite3_finalize(st);
     return out;
+}
+
+// Ältere Seite beim Hochscrollen: die `limit` Nachrichten direkt vor (ts, rowid), aufsteigend.
+// Nur diese werden entschlüsselt, die schon geladenen bleiben.
+- (NSArray *)messagesForChat:(NSString *)pubkeyHex beforeTs:(long long)ts rowId:(long long)rowId limit:(NSUInteger)limit {
+    NSMutableArray *out = [NSMutableArray array];
+    sqlite3_stmt *st = [self prepare:"SELECT " MESSAGE_COLUMNS " FROM messages WHERE chat=?1 AND (ts<?2 OR (ts=?2 AND rowid<?3)) "
+                                     "ORDER BY ts DESC, rowid DESC LIMIT ?4"];
+    if (!st) return out;
+    bindText(st, 1, pubkeyHex);
+    sqlite3_bind_int64(st, 2, ts);
+    sqlite3_bind_int64(st, 3, rowId);
+    sqlite3_bind_int64(st, 4, (sqlite3_int64)limit);
+    while (sqlite3_step(st) == SQLITE_ROW) [out insertObject:[self messageFromRow:st chat:pubkeyHex] atIndex:0];
+    sqlite3_finalize(st);
+    return out;
+}
+
+// Zitat antippen: so viele der neuesten Nachrichten muss der Chat laden, damit die mit key dabei ist
+// (sie selbst mitgezählt). 0 = gibt es nicht. Nichts wird entschlüsselt.
+- (NSUInteger)countFromKey:(NSString *)key chat:(NSString *)chat {
+    if (!key.length) return 0;
+    sqlite3_stmt *st = [self prepare:"SELECT COUNT(*) FROM messages m, "
+                                     "(SELECT ts, rowid AS r FROM messages WHERE chat=?1 AND (cmid=?2 OR event_id=?2) LIMIT 1) k "
+                                     "WHERE m.chat=?1 AND (m.ts>k.ts OR (m.ts=k.ts AND m.rowid>=k.r))"];
+    if (!st) return 0;
+    bindText(st, 1, chat);
+    bindText(st, 2, key);
+    NSUInteger n = sqlite3_step(st) == SQLITE_ROW ? (NSUInteger)sqlite3_column_int64(st, 0) : 0;
+    sqlite3_finalize(st);
+    return n;
+}
+
+// Schlanke Zeilen für Galerie und Vollbild: ohne Reaktionen (nichts zu entschlüsseln), Inhalt nur als Marker.
+#define MEDIA_COLUMNS "kind, secs, from_me, ts, event_id, status, rowid, width, height, cmid, reply_to, timer, expires"
+
+static MeshMessage *mediaFromRow(sqlite3_stmt *st) {
+    MeshMessage *m = [[MeshMessage alloc] init];
+    m.kind    = sqlite3_column_int(st, 0);
+    m.content = [MeshPayload markerForKind:(int)m.kind seconds:sqlite3_column_int(st, 1)] ?: @"";
+    m.fromMe  = sqlite3_column_int(st, 2) != 0;
+    m.ts      = sqlite3_column_int64(st, 3);
+    m.eventId = columnText(st, 4);
+    m.status  = sqlite3_column_int(st, 5);
+    m.rowId   = sqlite3_column_int64(st, 6);
+    m.width   = sqlite3_column_int(st, 7);
+    m.height  = sqlite3_column_int(st, 8);
+    m.cmid    = columnText(st, 9);
+    m.replyTo = columnText(st, 10);
+    m.timer   = sqlite3_column_int(st, 11);
+    m.expiresAt = sqlite3_column_int64(st, 12);
+    return m;
+}
+
+- (NSArray *)mediaRows:(const char *)sql chat:(NSString *)chat {
+    NSMutableArray *out = [NSMutableArray array];
+    sqlite3_stmt *st = [self prepare:sql];
+    if (!st) return out;
+    bindText(st, 1, chat);
+    while (sqlite3_step(st) == SQLITE_ROW) [out addObject:mediaFromRow(st)];
+    sqlite3_finalize(st);
+    return out;
+}
+
+_Static_assert(MeshPayloadImage == 1 && MeshPayloadFile == 3, "kind=1 / kind=3 anpassen");
+- (NSArray *)mediaForChat:(NSString *)chat {
+    return [self mediaRows:"SELECT " MEDIA_COLUMNS " FROM messages WHERE chat=? AND (kind=1 OR (kind=3 AND width IN (0, -1))) "
+                           "ORDER BY ts DESC, rowid DESC" chat:chat];
+}
+
+- (NSArray *)unclassifiedFilesForChat:(NSString *)chat onlyMine:(BOOL)mine {
+    return [self mediaRows:mine ? "SELECT " MEDIA_COLUMNS " FROM messages WHERE chat=? AND kind=3 AND width=0 AND from_me=1"
+                                : "SELECT " MEDIA_COLUMNS " FROM messages WHERE chat=? AND kind=3 AND width=0" chat:chat];
+}
+
+- (NSUInteger)mediaCountForChat:(NSString *)chat onlyMine:(BOOL)mine {
+    sqlite3_stmt *st = [self prepare:mine ? "SELECT COUNT(*) FROM messages WHERE chat=? AND (kind=1 OR (kind=3 AND width=-1)) AND from_me=1"
+                                          : "SELECT COUNT(*) FROM messages WHERE chat=? AND (kind=1 OR (kind=3 AND width=-1))"];
+    if (!st) return 0;
+    bindText(st, 1, chat);
+    NSUInteger n = sqlite3_step(st) == SQLITE_ROW ? (NSUInteger)sqlite3_column_int64(st, 0) : 0;
+    sqlite3_finalize(st);
+    return n;
 }
 
 - (MeshMessage *)messageWithKey:(NSString *)key chat:(NSString *)chat {

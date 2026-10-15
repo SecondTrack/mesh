@@ -6,6 +6,7 @@
 #import "MeshImageCodec.h"
 #import "MeshVideoCodec.h"
 #import "ContactPickerViewController.h"
+#import "MeshImageSendPreview.h"
 #import "MeshL10n.h"
 
 static const NSTimeInterval kMaxVideoSeconds = 20;   // passt bei niedriger Qualität in eine Nachricht
@@ -28,8 +29,17 @@ static const NSTimeInterval kMaxVideoSeconds = 20;   // passt bei niedriger Qual
 
 + (void)pickImageFrom:(UIViewController *)host source:(UIImagePickerControllerSourceType)source peer:(NSString *)peer
               replyTo:(NSString *(^)(void))replyTo sent:(void (^)(void))sent {
+    // Erst die Vorschau (wie Android), gesendet wird das dort gezeigte JPEG. Kurz warten, bis die
+    // Auswahl zu ist: iOS 5/6 schieben sonst keine Seite nach.
     [MeshImagePicker pickFrom:host source:source done:^(UIImage *image) {
-        if ([[MeshSession shared] sendImageTo:peer jpeg:[MeshImageCodec jpegForChat:image] replyTo:replyTo()] && sent) sent();
+        NSData *jpeg = [MeshImageCodec jpegForChat:image];
+        if (!jpeg.length) return;
+        MeshImageSendPreview *preview = [[MeshImageSendPreview alloc] initWithJPEG:jpeg send:^(NSData *data) {
+            if ([[MeshSession shared] sendImageTo:peer jpeg:data replyTo:replyTo()] && sent) sent();
+        }];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [host.navigationController pushViewController:preview animated:YES];
+        });
     }];
 }
 

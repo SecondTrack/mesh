@@ -16,6 +16,7 @@
 #import "MeshChat.h"
 #import "MeshSession.h"
 #import "MeshGlyphs.h"
+#import "MeshKeyboard.h"
 #import "MeshL10n.h"
 #import "MeshPopup.h"
 #import "MeshIdentityInfo.h"
@@ -60,6 +61,7 @@
     _search.clearButtonMode = UITextFieldViewModeWhileEditing;
     _search.delegate = self;
     [_search addTarget:self action:@selector(applyFilter) forControlEvents:UIControlEventEditingChanged];
+    [MeshKeyboard attachTo:_search];
     [search addSubview:_search];
     [self.view addSubview:search];
 

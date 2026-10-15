@@ -10,6 +10,8 @@
 #import "MeshMessage.h"
 #import "MeshPayload.h"
 #import "MeshEnvelope.h"
+#import "MeshProfile.h"
+#import "MeshBase64.h"
 #import "MeshNip04.h"
 #import "MeshNip44.h"
 #import "MeshHex.h"
@@ -26,6 +28,7 @@
 @property (nonatomic, readonly) NSString *pubkey;
 @property (nonatomic) MeshPanic *panic;
 @property (nonatomic) int wipes;
+@property (nonatomic) int pictureChanges;
 @end
 
 @interface MemoryPanicStorage : NSObject <MeshPanicStorage>
@@ -66,6 +69,7 @@
 - (void)messenger:(MeshMessenger *)m acceptedContact:(NSString *)peer {}
 - (void)messengerReceivedPanic:(MeshMessenger *)m { _wipes++; }
 - (void)messenger:(MeshMessenger *)m received:(MeshMessage *)message from:(NSString *)peer {}
+- (void)messenger:(MeshMessenger *)m changedPictureOf:(NSString *)peer { _pictureChanges++; }
 // Alles Gesendete beim anderen zustellen.
 - (int)deliverTo:(Device *)other {
     int changed = 0;
@@ -205,6 +209,67 @@ static void testStrangers(Device *a, Device *b) {
     check(lm.kind == MeshPayloadVoice && lm.cmid == nil, "old voice without cmid");
 }
 
+static NSString *fakeJpeg(NSUInteger size) {
+    NSMutableData *d = [NSMutableData dataWithLength:size];
+    arc4random_buf(d.mutableBytes, size);
+    memcpy(d.mutableBytes, "\xFF\xD8\xFF\xE0", 4);
+    return [MeshBase64 encode:d];
+}
+
+static void setOwnPicture(Device *d, NSString *pic) {
+    MeshProfile *p = [d.store loadProfile];
+    p.picture = pic;
+    [d.store saveProfile:p];
+}
+
+// Privates Profilbild (\1mesh:pic:) wie Android: nur angenommene Kontakte, geprüft, nie im Chat.
+static void testPicture(Device *a, Device *b) {
+    NSUInteger before = [b chatWith:a].count;
+    NSString *pic = fakeJpeg(3000);
+    setOwnPicture(a, pic);
+    check([a.messenger sendPictureTo:b.pubkey], "picture sent");
+    check([a deliverTo:b] == 0 && [b chatWith:a].count == before, "picture is not a chat message");
+    check([[b.store picForContact:a.pubkey] isEqualToString:pic] && b.pictureChanges == 1, "picture stored, ui notified");
+    check(b.outbox.count == 0, "no reply without own picture");
+
+    // b hat jetzt ein Bild: auf das nächste Bild von a antwortet b genau einmal
+    setOwnPicture(b, fakeJpeg(2000));
+    NSString *pic2 = fakeJpeg(2500);
+    setOwnPicture(a, pic2);
+    [a.messenger sendPictureToAllContacts];
+    [a deliverTo:b];
+    check([[b.store picForContact:a.pubkey] isEqualToString:pic2], "changed picture replaces old");
+    check(b.outbox.count == 1, "one reply with own picture");
+    [b deliverTo:a];
+    check([[a.store picForContact:b.pubkey] isEqualToString:[b.store loadProfile].picture], "reply stored at a");
+    check(a.outbox.count == 1, "a replies once");
+    [a deliverTo:b];
+    check(b.outbox.count == 0, "no ping-pong");
+
+    // Ungültiges: zu groß, kein JPEG/PNG -> verworfen
+    setOwnPicture(a, fakeJpeg(70 * 1024));
+    check(![a.messenger sendPictureTo:b.pubkey], "oversized own picture not sent");
+    NSString *gif = [MeshBase64 encode:[@"GIF89a-not-allowed" dataUsingEncoding:NSUTF8StringEncoding]];
+    MeshEvent *e = [MeshEvent kind:4 content:[MeshNip44 encrypt:[MeshEnvelope picture:gif] keys:a.keys peerXonlyPub:b.keys.xonlyPub]
+                              tags:@[@[@"p", b.pubkey]]];
+    [e signWithKeys:a.keys];
+    check(![b.messenger receive:e] && [[b.store picForContact:a.pubkey] isEqualToString:pic2], "non-image ignored");
+
+    // Fremde: kein Bild, kein Kontakt mit Bild
+    Device *mallory = [[Device alloc] initNamed:@"mallory2" signal:NO];
+    setOwnPicture(mallory, fakeJpeg(1000));
+    [mallory.messenger sendPictureTo:b.pubkey];
+    [mallory deliverTo:b];
+    check(![b.store picForContact:mallory.pubkey] && b.outbox.count == 0, "stranger picture ignored");
+
+    // Entfernt
+    setOwnPicture(a, @"");
+    [a.messenger sendPictureToAllContacts];
+    [a deliverTo:b];
+    check([b.store picForContact:a.pubkey] == nil, "removed picture clears");
+    [a.outbox removeAllObjects]; [b.outbox removeAllObjects];
+}
+
 static void testLarge(Device *a, Device *b) {
     NSMutableData *big = [NSMutableData dataWithLength:80 * 1024];
     arc4random_buf(big.mutableBytes, big.length);
@@ -296,6 +361,7 @@ int main(void) {
         testTimer(alice, bob);
         testClear(alice, bob);
         testStrangers(alice, bob);
+        testPicture(alice, bob);
         testLarge(alice, bob);
         testPanic(alice, bob);
         testSignal();

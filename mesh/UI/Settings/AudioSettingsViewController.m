@@ -4,6 +4,7 @@
 #import "MeshPageHeader.h"
 #import "MeshPopup.h"
 #import "VoiceLabViewController.h"
+#import "VoiceEffectViewController.h"
 #import "MeshL10n.h"
 #import "MeshVoiceSettings.h"
 #import "MeshMenuRow.h"
@@ -27,7 +28,7 @@ enum { RowVPIO = 1, RowPlayGain, RowEffect, RowLab };
     y = [self rowAt:y width:W icon:@"sliders" title:L(@"Audio Lab") sub:L(@"Tune recording quality live") tag:RowLab];
     y = [self section:L(@"RECORDING") at:y+6 width:W];
     y = [self rowAt:y width:W icon:@"mic" title:L(@"Apple Voice Unit") sub:L(@"Hardware noise reduction + AGC") tag:RowVPIO];
-    y = [self rowAt:y width:W icon:@"wave" title:L(@"Voice effect") sub:L(@"Distortion") tag:RowEffect];
+    y = [self rowAt:y width:W icon:@"wave" title:L(@"Voice changer") sub:L(@"Effect for voice messages") tag:RowEffect];
     y = [self section:L(@"PLAYBACK") at:y+6 width:W];
     y = [self rowAt:y width:W icon:@"speaker" title:L(@"Playback volume") sub:L(@"Make voice messages louder") tag:RowPlayGain];
 
@@ -37,6 +38,12 @@ enum { RowVPIO = 1, RowPlayGain, RowEffect, RowLab };
     [_scroll addSubview:hint];
     _scroll.contentSize = CGSizeMake(W, y + 100);
 
+    [self refresh];
+}
+
+// Nach der Stimmverzerrer-Seite den gewählten Effekt neu anzeigen
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
     [self refresh];
 }
 
@@ -63,16 +70,12 @@ enum { RowVPIO = 1, RowPlayGain, RowEffect, RowLab };
 - (void)tapRow:(UIButton *)row {
     NSInteger tag = row.tag;
     if (tag == RowLab)  { [self.navigationController pushViewController:[[VoiceLabViewController alloc] init] animated:YES]; return; }
+    if (tag == RowEffect) { [self.navigationController pushViewController:[[VoiceEffectViewController alloc] init] animated:YES]; return; }
     if (tag == RowVPIO) { [MeshVoiceSettings setUseVPIO:![MeshVoiceSettings useVPIO]]; [self refresh]; return; }
 
-    BOOL effect = (tag == RowEffect);
-    NSString *title = effect ? L(@"Voice effect") : L(@"Playback volume");
-    NSArray *opts = effect ? [MeshVoiceSettings effectLabels] : [MeshVoiceSettings gainLabels];
-
-    [MeshPopup sheet:title options:opts destructiveIndex:-1 handler:^(NSInteger idx) {
+    [MeshPopup sheet:L(@"Playback volume") options:[MeshVoiceSettings gainLabels] destructiveIndex:-1 handler:^(NSInteger idx) {
         if (idx < 0) return;
-        if (effect) [MeshVoiceSettings setCurrentEffect:[MeshVoiceSettings allEffects][idx]];
-        else        [MeshVoiceSettings setPlayGainLevel:(int)idx];
+        [MeshVoiceSettings setPlayGainLevel:(int)idx];
         [self refresh];
     }];
 }

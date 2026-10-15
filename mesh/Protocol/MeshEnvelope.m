@@ -12,6 +12,7 @@ static NSString *const kClear   = @"\1mesh:clr:";
 static NSString *const kTimer   = @"\1mesh:ttls:";
 static NSString *const kHello   = @"mesh:hi:";
 static NSString *const kChunk   = @"\1mesh:fc:";
+static NSString *const kPicture = @"\1mesh:pic:";
 static NSString *const kFile    = @"\1mesh:file:";   // gehört zu MeshPayload, hier nur zum Erkennen
 static NSString *const kControl = @"\1mesh:";        // gemeinsamer Anfang aller Steuermarker
 
@@ -74,6 +75,9 @@ static BOOL takeLine(NSString **s, NSString *marker, NSString **value) {
             ? MeshTimerFromSent : MeshTimerFromRead;
     } else if ([s isEqualToString:kHello]) {
         e->_type = MeshEnvelopeHello;
+    } else if ([s hasPrefix:kPicture]) {
+        e->_type = MeshEnvelopePicture;
+        e->_picture = [[s substringFromIndex:kPicture.length] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     } else if ([s hasPrefix:kChunk]) {
         if (![e parseChunk:[s substringFromIndex:kChunk.length]]) return [e ignored];
         e->_type = MeshEnvelopeFileChunk;
@@ -149,6 +153,8 @@ static BOOL takeLine(NSString **s, NSString *marker, NSString **value) {
 + (NSString *)helloWithBundle:(NSString *)bundle {
     return bundle.length ? [NSString stringWithFormat:@"%@%@\n%@", kBundle, bundle, kHello] : kHello;
 }
+
++ (NSString *)picture:(NSString *)base64 { return [kPicture stringByAppendingString:base64 ?: @""]; }
 
 + (NSString *)newMessageId { return [MeshHex encode:[MeshCrypto randomBytes:8]]; }
 

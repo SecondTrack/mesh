@@ -48,6 +48,13 @@ static void testControls(void) {
     e = [MeshEnvelope parse:[MeshEnvelope helloWithBundle:@"QUJD"]];
     check(e.type == MeshEnvelopeHello && [e.bundle isEqualToString:@"QUJD"], "hello");
     check([MeshEnvelope parse:@"mesh:hi:"].type == MeshEnvelopeHello, "hello without bundle");
+    e = [MeshEnvelope parse:[MeshEnvelope picture:@"/9j/AAAA"]];
+    check(e.type == MeshEnvelopePicture && [e.picture isEqualToString:@"/9j/AAAA"], "picture");
+    check([[MeshEnvelope picture:@"QQ=="] isEqualToString:@"\1mesh:pic:QQ=="], "picture marker like android");
+    e = [MeshEnvelope parse:@"\1mesh:pic:"];
+    check(e.type == MeshEnvelopePicture && e.picture.length == 0, "picture removed");
+    e = [MeshEnvelope parse:@"\1mesh:mb:QUJD\nmesh:on:abc.onion\n\1mesh:pic:QQ=="];
+    check(e.type == MeshEnvelopePicture && [e.bundle isEqualToString:@"QUJD"], "picture after android prefix");
 
     // Steueranweisung hinter einem Bundle (Android über NIP-44 ohne Session)
     e = [MeshEnvelope parse:@"\1mesh:mb:QUJD\n\1mesh:rx:abcd|❤️"];

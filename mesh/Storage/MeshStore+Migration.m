@@ -75,6 +75,10 @@ static NSString *messageContextV2(NSString *chat, int kind, int secs) {   // Sch
         { "messages", "expires", "INTEGER NOT NULL DEFAULT 0", NULL },
         // Signal-Bundle des Kontakts (aus QR-Code oder Nachricht), versiegelt.
         { "contacts", "bundle", "TEXT", NULL },
+        // "Über mich" aus dem kind-0-Profil des Kontakts, versiegelt.
+        { "contacts", "about", "TEXT", NULL },
+        // Bis wann der Chat gelesen ist (Unix-Sekunden): Trennlinie "Neue Nachrichten".
+        { "chats", "read", "INTEGER NOT NULL DEFAULT 0", NULL },
     };
     for (size_t i = 0; i < sizeof(added) / sizeof(added[0]); i++) {
         if ([self table:added[i].table hasColumn:added[i].column]) continue;

@@ -39,9 +39,12 @@
 - (void)setVerified:(NSString *)pubkeyHex verified:(BOOL)v;
 - (BOOL)isVerified:(NSString *)pubkeyHex;
 // Profil eines Kontakts aus kind-0 (Name, Bild). Den Anzeigenamen bildet MeshSession.
+- (BOOL)setPicture:(NSString *)pic forContact:(NSString *)pubkeyHex;   // privat geschicktes Profilbild, @"" = entfernt
 - (void)forgetProfileTimeOf:(NSString *)pubkeyHex;   // nächstes Profil gilt als neuer (nach dem Annehmen)
 - (BOOL)setContactProfile:(NSString *)pubkeyHex pname:(NSString *)pname pic:(NSString *)pic createdAt:(long long)ts;   // nur wenn neuer
 - (BOOL)setContactProfile:(NSString *)pubkeyHex pname:(NSString *)pname pic:(NSString *)pic createdAt:(long long)ts sameAgain:(BOOL)same;   // same: auch bei gleichem Zeitstempel
+- (NSString *)aboutForContact:(NSString *)pubkeyHex;         // aus kind-0, nil = keiner
+- (void)setAbout:(NSString *)about forContact:(NSString *)pubkeyHex;
 - (NSString *)profileNameForContact:(NSString *)pubkeyHex;   // aus kind-0, nil = keiner
 - (BOOL)isContact:(NSString *)pubkeyHex;
 
@@ -57,5 +60,12 @@
 - (NSArray *)messagesForChat:(NSString *)pubkeyHex;   // MeshMessage*, aufsteigend nach ts
 - (NSArray *)messagesForChat:(NSString *)pubkeyHex limit:(NSUInteger)limit;   // nur die neuesten, aufsteigend
 - (NSString *)contentOfMessage:(long long)rowId;          // vollständiger Inhalt (inkl. Medien)
+// die `limit` Nachrichten direkt vor (ts, rowId), aufsteigend – zum Nachladen älterer
+- (NSArray *)messagesForChat:(NSString *)pubkeyHex beforeTs:(long long)ts rowId:(long long)rowId limit:(NSUInteger)limit;
+- (NSUInteger)countFromKey:(NSString *)key chat:(NSString *)chat;   // Nachrichten ab der mit key (cmid/Event-ID) bis zur neuesten, 0 = keine
+// Bilder + Videos (Dateien mit width -1, unbekannte mit 0), neueste zuerst; schlank: ohne Reaktionen, Inhalt nur Marker
+- (NSArray *)mediaForChat:(NSString *)chat;
+- (NSArray *)unclassifiedFilesForChat:(NSString *)chat onlyMine:(BOOL)mine;   // Dateien mit width 0 (Art noch ungeprüft), schlank
+- (NSUInteger)mediaCountForChat:(NSString *)chat onlyMine:(BOOL)mine;        // Bilder + Videos (width -1), per COUNT
 - (NSArray *)chatList;                                 // MeshChat*, letzte Nachricht je Kontakt
 @end

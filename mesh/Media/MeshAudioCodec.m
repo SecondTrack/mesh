@@ -68,6 +68,83 @@ AudioStreamBasicDescription MeshPcmFormat(void) {
     return f;
 }
 
+#pragma mark - M4A verdichten
+
+// Core Audio legt vor mdat einen free-Block von ~24 KB an (Platz für ein späteres moov) und schreibt
+// in moov/udta Encoder-Angaben. Für eine 3-s-Sprachnachricht sind das 30 KB statt 6 KB – über Relays mit
+// 128-KB-Grenze (nos.lol, nostr.mom) zu viel. Neu verpackt als ftyp + moov (ohne udta) + mdat; die
+// Chunk-Offsets (stco/co64) werden um die Verschiebung von mdat korrigiert. Passt etwas nicht: nil.
+static uint32_t rd32(const uint8_t *p) { return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3]; }
+static void wr32(uint8_t *p, uint32_t v) { p[0] = v >> 24; p[1] = v >> 16; p[2] = v >> 8; p[3] = v; }
+
+// Box bei off innerhalb [off, end): Größe und Kopf. NO bei kaputten Größen (auch 64-Bit-Größen: kommen hier nicht vor).
+static BOOL boxAt(const uint8_t *b, NSUInteger off, NSUInteger end, NSUInteger *size, const uint8_t **type) {
+    if (end - off < 8) return NO;
+    NSUInteger s = rd32(b + off);
+    if (s < 8 || s > end - off) return NO;
+    *size = s; *type = b + off + 4;
+    return YES;
+}
+
+// Offsets in stco/co64 innerhalb von [off, end) um delta verschieben; jeder alte Offset muss in mdat liegen.
+static BOOL fixOffsets(uint8_t *b, NSUInteger off, NSUInteger end, long long delta, uint64_t lo, uint64_t hi) {
+    while (off < end) {
+        NSUInteger size; const uint8_t *t;
+        if (!boxAt(b, off, end, &size, &t)) return NO;
+        if (!memcmp(t, "trak", 4) || !memcmp(t, "mdia", 4) || !memcmp(t, "minf", 4) || !memcmp(t, "stbl", 4)) {
+            if (!fixOffsets(b, off + 8, off + size, delta, lo, hi)) return NO;
+        } else if (!memcmp(t, "stco", 4) || !memcmp(t, "co64", 4)) {
+            BOOL wide = t[1] == 'o';
+            if (size < 16) return NO;
+            uint32_t n = rd32(b + off + 12);
+            NSUInteger w = wide ? 8 : 4;
+            if (n > (size - 16) / w) return NO;
+            for (uint32_t k = 0; k < n; k++) {
+                uint8_t *e = b + off + 16 + k * w;
+                uint64_t v = wide ? ((uint64_t)rd32(e) << 32) | rd32(e + 4) : rd32(e);
+                if (v < lo || v >= hi) return NO;
+                uint64_t nv = (uint64_t)((long long)v + delta);
+                if (wide) { wr32(e, (uint32_t)(nv >> 32)); wr32(e + 4, (uint32_t)nv); }
+                else { if (nv > UINT32_MAX) return NO; wr32(e, (uint32_t)nv); }
+            }
+        }
+        off += size;
+    }
+    return YES;
+}
+
+NSData *MeshCompactM4A(NSData *m4a) {
+    const uint8_t *b = m4a.bytes; NSUInteger n = m4a.length, off = 0;
+    NSRange ftyp = {NSNotFound, 0}, moov = {NSNotFound, 0}, mdat = {NSNotFound, 0};
+    while (off < n) {
+        NSUInteger size; const uint8_t *t;
+        if (!boxAt(b, off, n, &size, &t)) return nil;
+        NSRange r = NSMakeRange(off, size);
+        if (!memcmp(t, "ftyp", 4) && ftyp.location == NSNotFound) ftyp = r;
+        else if (!memcmp(t, "moov", 4) && moov.location == NSNotFound) moov = r;
+        else if (!memcmp(t, "mdat", 4) && mdat.location == NSNotFound) mdat = r;
+        else if (memcmp(t, "free", 4) && memcmp(t, "skip", 4) && memcmp(t, "wide", 4)) return nil;   // Unbekanntes: nicht anfassen
+        off += size;
+    }
+    if (ftyp.location != 0 || moov.location == NSNotFound || mdat.location == NSNotFound) return nil;
+    // moov ohne udta
+    NSMutableData *mv = [NSMutableData dataWithBytes:b + moov.location length:8];
+    for (NSUInteger o = moov.location + 8, end = NSMaxRange(moov); o < end;) {
+        NSUInteger size; const uint8_t *t;
+        if (!boxAt(b, o, end, &size, &t)) return nil;
+        if (memcmp(t, "udta", 4)) [mv appendBytes:b + o length:size];
+        o += size;
+    }
+    wr32(mv.mutableBytes, (uint32_t)mv.length);
+    long long delta = (long long)(ftyp.length + mv.length) - (long long)mdat.location;
+    if (!fixOffsets(mv.mutableBytes, 8, mv.length, delta, mdat.location + 8, NSMaxRange(mdat))) return nil;
+    NSMutableData *out = [NSMutableData dataWithCapacity:ftyp.length + mv.length + mdat.length];
+    [out appendBytes:b length:ftyp.length];
+    [out appendData:mv];
+    [out appendBytes:b + mdat.location length:mdat.length];
+    return out;
+}
+
 + (NSData *)pcmToAac:(NSData *)pcm {
     AudioStreamBasicDescription dst; memset(&dst, 0, sizeof(dst));
     dst.mFormatID = kAudioFormatMPEG4AAC;
@@ -110,7 +187,10 @@ AudioStreamBasicDescription MeshPcmFormat(void) {
     ExtAudioFileDispose(ef);
     AudioFileClose(af);   // schreibt erst hier den moov-Block
     if (st != noErr) { MeshLog(@"Sprache: AAC-Kodierung fehlgeschlagen (%d)", (int)st); return nil; }
-    return out.length ? out : nil;
+    if (!out.length) return nil;
+    NSData *compact = MeshCompactM4A(out);
+    if (compact) MeshWipe(out);   // die alte Kopie mit dem Signal nicht liegen lassen
+    return compact ?: out;
 }
 
 + (NSData *)aacToPcm:(NSData *)aac maxSeconds:(NSTimeInterval)maxSeconds {

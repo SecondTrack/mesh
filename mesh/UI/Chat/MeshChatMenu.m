@@ -10,10 +10,11 @@ static NSString *checked(NSString *title, BOOL on) { return on ? [@"✓ " string
 
 @implementation MeshChatMenu
 
-+ (void)showForPeer:(NSString *)peer changed:(void (^)(void))changed {
-    [MeshPopup sheet:nil options:@[L(@"Disappearing messages"), L(@"Clear chat")] destructiveIndex:1 handler:^(NSInteger idx) {
-        if (idx == 0) [self chooseTimerFor:peer changed:changed];
-        if (idx == 1) [self askClear:peer];
++ (void)showForPeer:(NSString *)peer media:(void (^)(void))media changed:(void (^)(void))changed {
+    [MeshPopup sheet:nil options:@[L(@"Media"), L(@"Disappearing messages"), L(@"Clear chat")] destructiveIndex:2 handler:^(NSInteger idx) {
+        if (idx == 0 && media) media();
+        if (idx == 1) [self chooseTimerFor:peer changed:changed];
+        if (idx == 2) [self askClear:peer];
     }];
 }
 

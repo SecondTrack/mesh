@@ -188,6 +188,8 @@ static NSArray *segments(NSString *text) {
     return NO;
 }
 
++ (NSArray *)allKeys { return [packIndex() allKeys]; }
+
 + (NSArray *)keysIn:(NSString *)text {
     NSMutableArray *keys = [NSMutableArray array];
     for (id s in segments(text)) if ([s isKindOfClass:[NSArray class]]) [keys addObjectsFromArray:s];

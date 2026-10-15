@@ -8,6 +8,8 @@ extern NSString *const MeshEffectDeep;
 extern NSString *const MeshEffectRobot;
 extern NSString *const MeshEffectAlien;
 extern NSString *const MeshEffectAnonym;
+extern NSString *const MeshEffectChipmunk;
+extern NSString *const MeshEffectChipmunkAnon;
 
 @interface MeshAudioDSP : NSObject
 // Aufbereitung wie im Audio-Labor: Hochpass, Tiefpass, Rauschfilter (noise 0…4),

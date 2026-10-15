@@ -55,17 +55,20 @@
     self.layer.cornerRadius = MIN(frame.size.width, frame.size.height) / 2;
 }
 
+static const CGFloat kLargeSide = 640;   // Vollbild-Avatar: Bildschirmbreite in Pixeln
+
 // Aufgelöste Profilbilder je Quelle und Pubkey (NSNull = keins), damit wiederverwendete Zellen
-// nicht bei jedem Scrollen Datenbank, Entschlüsseln und Dekodieren anstoßen. Beim Sperren und bei
-// Profiländerungen geleert.
+// nicht bei jedem Scrollen Datenbank, Entschlüsseln und Dekodieren anstoßen. Beim Sperren, bei
+// Profiländerungen und bei Speicherwarnung geleert; nach Pixeln begrenzt.
 static NSCache *ResolvedCache(void) {
     static NSCache *cache;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         cache = [[NSCache alloc] init];
         cache.countLimit = 64;
+        cache.totalCostLimit = 8 * 1024 * 1024;
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-        for (NSString *name in @[MeshWillLockNotification, MeshProfilesChangedNotification])
+        for (NSString *name in @[MeshWillLockNotification, MeshProfilesChangedNotification, UIApplicationDidReceiveMemoryWarningNotification])
             [nc addObserverForName:name object:nil queue:nil usingBlock:^(NSNotification *n) { [cache removeAllObjects]; }];
     });
     return cache;
@@ -75,15 +78,17 @@ static NSCache *ResolvedCache(void) {
     NSString *key = [NSString stringWithFormat:@"%ld|%@", (long)source, pubkey ?: @""];
     id hit = [ResolvedCache() objectForKey:key];
     if (hit) return hit == [NSNull null] ? nil : hit;
-    UIImage *img = [self resolvePictureForSource:source pubkey:pubkey];
-    [ResolvedCache() setObject:(img ?: (id)[NSNull null]) forKey:key];
+    UIImage *img = [MeshImageCodec imageFromPicture:[self storedPictureForSource:source pubkey:pubkey]];
+    [ResolvedCache() setObject:(img ?: (id)[NSNull null]) forKey:key
+                          cost:img ? (NSUInteger)(img.size.width * img.size.height * img.scale * img.scale * 4) : 0];
     return img;
 }
 
-+ (UIImage *)resolvePictureForSource:(MeshAvatarSource)source pubkey:(NSString *)pubkey {
+// Gespeicherte Form (Base64/data:) des Profilbilds, nil = keins oder (noch) nicht zu zeigen.
++ (NSString *)storedPictureForSource:(MeshAvatarSource)source pubkey:(NSString *)pubkey {
     switch (source) {
-        case MeshAvatarContact:   return [MeshImageCodec imageFromPicture:[[MeshSession shared] pictureFor:pubkey]];
-        case MeshAvatarSelf:      return [MeshImageCodec imageFromPicture:[[MeshSession shared] profile].picture];
+        case MeshAvatarContact:   return [[MeshSession shared] pictureFor:pubkey];
+        case MeshAvatarSelf:      return [[MeshSession shared] profile].picture;
         case MeshAvatarIdenticon:
         case MeshAvatarPreview:   return nil;
     }
@@ -91,7 +96,9 @@ static NSCache *ResolvedCache(void) {
 }
 
 + (UIImage *)largeImageForSource:(MeshAvatarSource)source pubkey:(NSString *)pubkey {
+    // Der Cache hält nur die Avatar-Fassung; fürs Vollbild einmal größer dekodieren (höchstens 640 px).
     UIImage *img = [self pictureForSource:source pubkey:pubkey];
+    if (img) img = [MeshImageCodec imageFromPicture:[self storedPictureForSource:source pubkey:pubkey] longestSide:kLargeSide] ?: img;
     if (img) return img;
     CGRect r = CGRectMake(0, 0, 512, 512);
     UIGraphicsBeginImageContextWithOptions(r.size, YES, 1);

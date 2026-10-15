@@ -1,5 +1,6 @@
 #import "MeshControls.h"
 #import "MeshTheme.h"
+#import "MeshKeyboard.h"
 
 @implementation MeshControls
 
@@ -17,6 +18,7 @@
     f.leftView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 12, frame.size.height)];
     f.leftViewMode = UITextFieldViewModeAlways;
     f.delegate = delegate;
+    [MeshKeyboard attachTo:f];   // eigene Tastatur statt iOS (lernt nichts mit)
     return f;
 }
 

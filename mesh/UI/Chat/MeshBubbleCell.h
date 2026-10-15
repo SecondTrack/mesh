@@ -6,6 +6,7 @@
 @interface MeshBubbleCell : UITableViewCell
 // Vor setText:/setImage:/setVoice: setzen; nil entfernt.
 - (void)setQuoteAuthor:(NSString *)author text:(NSString *)text;
+@property (nonatomic, copy) void (^quoteTapped)(void);   // Zitat antippen: zur zitierten Nachricht springen
 - (void)setReactions:(NSString *)reactions;   // z.B. "👍❤️"
 + (CGFloat)extraHeightWithQuote:(BOOL)quote reactions:(BOOL)reactions;
 

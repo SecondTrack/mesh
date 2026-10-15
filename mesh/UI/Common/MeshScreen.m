@@ -4,7 +4,7 @@
 #import "MeshTheme.h"
 
 // Hält die Tastatur-Beobachtung einer Seite; lebt so lange wie deren View (assoziiertes Objekt).
-@interface MeshKeyboardGuard : NSObject
+@interface MeshKeyboardGuard : NSObject <UIGestureRecognizerDelegate>
 @property (nonatomic) BOOL avoids;
 @end
 
@@ -24,6 +24,7 @@
         [nc addObserver:self selector:@selector(keyboardHides:) name:UIKeyboardWillHideNotification object:nil];
         UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapped)];
         tap.cancelsTouchesInView = NO;   // Knöpfe und Zeilen bekommen den Tipp trotzdem
+        tap.delegate = self;
         [root addGestureRecognizer:tap];
     }
     return self;
@@ -32,6 +33,14 @@
 - (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; }
 
 - (void)tapped { [_root endEditing:YES]; }
+
+// Tipps auf Knöpfe und Eingabefelder nicht als "daneben getippt" werten: sonst schließt der Tipp auf "Senden"
+// zuerst die Tastatur, die Eingabeleiste rutscht weg, und der Knopf verliert seinen Tipp (erst der zweite sendet).
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)g shouldReceiveTouch:(UITouch *)touch {
+    for (UIView *v = touch.view; v && v != _root; v = v.superview)
+        if ([v isKindOfClass:[UIControl class]] || [v isKindOfClass:[UITextView class]]) return NO;
+    return YES;
+}
 
 static UIView *firstResponderIn(UIView *v) {
     if (v.isFirstResponder) return v;

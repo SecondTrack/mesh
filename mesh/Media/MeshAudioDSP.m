@@ -1,4 +1,5 @@
 #import "MeshAudioDSP.h"
+#import "MeshVoiceFX.h"
 #import <Accelerate/Accelerate.h>
 #import "MeshAudioCodec.h"
 #import "MeshMemory.h"
@@ -9,6 +10,8 @@ NSString *const MeshEffectDeep   = @"deep";
 NSString *const MeshEffectRobot  = @"robot";
 NSString *const MeshEffectAlien  = @"alien";
 NSString *const MeshEffectAnonym = @"anonym";
+NSString *const MeshEffectChipmunk = @"chipmunk";
+NSString *const MeshEffectChipmunkAnon = @"chipmunk_anon";
 
 #pragma mark - Hilfen
 
@@ -211,31 +214,9 @@ static void peaking(float *x, int n, double center, double dB, double q) {
 #pragma mark - Stimmeffekte (gleiche Verfahren wie in der Android-App)
 
 + (NSData *)applyEffect:(NSData *)pcm effect:(NSString *)effect {
-    NSUInteger n = pcm.length / 2;
-    const int16_t *s = pcm.bytes;
-    if ([effect isEqualToString:MeshEffectHigh]) return [self resample:s count:n ratio:1.45];
-    if ([effect isEqualToString:MeshEffectDeep]) return [self resample:s count:n ratio:0.72];
-    if ([effect isEqualToString:MeshEffectRobot]) {
-        NSMutableData *result = [NSMutableData dataWithLength:n * 2];
-        int16_t *out = result.mutableBytes;
-        for (NSUInteger i = 0; i < n; i++)
-            out[i] = clampSample(s[i] * sin(2.0 * M_PI * 55.0 * i / MeshAudioSampleRate));
-        return result;
-    }
-    if ([effect isEqualToString:MeshEffectAlien]) {
-        NSMutableData *result = [self resample:s count:n ratio:1.2];
-        int16_t *r = result.mutableBytes;
-        for (NSUInteger i = 0, m = result.length / 2; i < m; i++)
-            r[i] = clampSample(r[i] * (0.6 + 0.4 * sin(2.0 * M_PI * 120.0 * i / MeshAudioSampleRate)));
-        return result;
-    }
-    if ([effect isEqualToString:MeshEffectAnonym]) {
-        // Etwa 4 Halbtöne tiefer bei gleichem Tempo. Das verstellt, anonymisiert aber nicht: mit dem
-        // Kehrwert lässt sich die Stimme zurückrechnen. Scheitert es, lieber nichts als die echte Stimme.
-        NSData *shifted = [self pitchShift:pcm ratio:0.80f];
-        return shifted.length ? shifted : nil;
-    }
-    return pcm;   // MeshEffectNone
+    // Rechnung 1:1 wie in der Android-App (MeshVoiceFX), damit derselbe Effekt auf beiden Geräten gleich klingt.
+    // nil heißt: Effekt gescheitert -> der Aufrufer schickt dann nichts statt der echten Stimme.
+    return MeshVoiceFXApply(pcm, effect ?: MeshEffectNone);
 }
 
 // Tonhöhe per Phase-Vocoder verschieben (ratio < 1 = tiefer), Tempo bleibt: erst um 1/ratio

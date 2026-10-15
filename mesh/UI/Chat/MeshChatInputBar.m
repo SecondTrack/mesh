@@ -2,6 +2,7 @@
 #import "MeshTheme.h"
 #import "MeshGlyphs.h"
 #import "MeshL10n.h"
+#import "MeshKeyboard.h"
 
 static const CGFloat kBarHeight = 54, kActionSize = 46, kFieldHeight = 36;
 
@@ -42,6 +43,7 @@ static const CGFloat kBarHeight = 54, kActionSize = 46, kFieldHeight = 36;
         _field.leftViewMode = UITextFieldViewModeAlways;
         _field.placeholder = L(@"Message");
         [_field addTarget:self action:@selector(refresh) forControlEvents:UIControlEventEditingChanged];
+        [MeshKeyboard attachTo:_field];
         [self addSubview:_field];
 
         _action = [UIButton buttonWithType:UIButtonTypeCustom];

@@ -46,7 +46,7 @@ suite Fremde            tests/inbox_test.m     -Imesh/Domain -framework Security
                         mesh/Crypto/MeshSeal.m mesh/Crypto/MeshCrypto.m mesh/Support/MeshMemory.m mesh/Support/MeshText.m
 suite Versiegeln        tests/seal_test.m      -framework Security -Imesh/Crypto -Imesh/Support mesh/Crypto/MeshSeal.m mesh/Crypto/MeshCrypto.m mesh/Support/MeshMemory.m mesh/Support/MeshBase64.m
 suite Audio             tests/audio_test.m     -framework CoreGraphics -framework AudioToolbox -framework Accelerate -Imesh/Media -Imesh/Support \
-                        mesh/Media/MeshAudioCodec.m mesh/Media/MeshAudioDSP.m mesh/Media/MeshPcmBuffer.m mesh/Media/MeshMediaCheck.m mesh/Support/MeshLog.m mesh/Support/MeshMemory.m
+                        mesh/Media/MeshAudioCodec.m mesh/Media/MeshAudioDSP.m mesh/Media/MeshVoiceFX.m mesh/Media/MeshPcmBuffer.m mesh/Media/MeshMediaCheck.m mesh/Support/MeshLog.m mesh/Support/MeshMemory.m
 suite Medienprüfung     tests/mediacheck_test.m -framework CoreGraphics -framework ImageIO -framework CoreServices -Imesh/Media mesh/Media/MeshMediaCheck.m
 suite Zertifikatszeit   tests/certtime_test.m  -Imesh/Transport mesh/Transport/MeshCertTime.m
 suite WebSocket         tests/websocket_test.m -framework Security -Itests/fakes -Imesh/Transport -Imesh/Support -Imesh/Crypto \
@@ -54,6 +54,8 @@ suite WebSocket         tests/websocket_test.m -framework Security -Itests/fakes
 suite Kontakt-Code      tests/contactcode_test.m -Imesh/Protocol -Imesh/Crypto mesh/Protocol/MeshContactCode.m mesh/Protocol/MeshBech32.m mesh/Crypto/MeshHex.m
 suite Bech32            tests/bech32_test.m    -Imesh/Protocol -Imesh/Crypto mesh/Protocol/MeshBech32.m mesh/Crypto/MeshHex.m
 suite Text              tests/text_test.m      -Imesh/Support mesh/Support/MeshText.m
+suite Sicherheitscode    tests/safetycode_test.m -Imesh/Protocol mesh/Protocol/MeshSafetyCode.m
+suite Tastatur         tests/keyboard_test.m  -framework CoreGraphics -Imesh/UI/Common mesh/UI/Common/MeshKeyboardLayout.m
 suite PIN-Sperre        tests/pinguard_test.m  -Imesh/Domain mesh/Domain/MeshPinGuard.m
 suite Notlöschung       tests/panic_test.m     -framework Security -Imesh/Domain -Imesh/Crypto -Imesh/Support mesh/Domain/MeshPanic.m mesh/Support/MeshTime.m \
                         mesh/Domain/MeshKeychain.m mesh/Crypto/MeshCrypto.m mesh/Crypto/MeshHex.m mesh/Support/MeshMemory.m mesh/Support/MeshLog.m

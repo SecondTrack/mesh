@@ -269,6 +269,7 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     _quoteText.textColor = [MeshTheme muted];
     _quoteText.backgroundColor = [UIColor clearColor];
     [_quote addSubview:_quoteText];
+    [_quote addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(quoteTap)]];
     [self.contentView addSubview:_quote];
 
     _reaction = [[UILabel alloc] init];
@@ -281,6 +282,8 @@ static CGSize MeshImgDisplaySize(CGSize size, CGFloat maxW, CGFloat maxH) {
     _reaction.hidden = YES;
     [self.contentView addSubview:_reaction];
 }
+
+- (void)quoteTap { if (self.quoteTapped) self.quoteTapped(); }
 
 - (void)setQuoteAuthor:(NSString *)author text:(NSString *)text {
     _quote.hidden = author == nil;

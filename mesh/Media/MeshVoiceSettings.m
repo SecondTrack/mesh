@@ -22,13 +22,19 @@ static NSString *const kLabGain     = @"mesh.lab.gain";
 + (void)setCurrentEffect:(NSString *)effect {
     [[NSUserDefaults standardUserDefaults] setObject:(effect ?: MeshEffectNone) forKey:kEffect];
 }
-+ (NSArray *)allEffects { return @[MeshEffectNone, MeshEffectHigh, MeshEffectDeep, MeshEffectRobot, MeshEffectAlien, MeshEffectAnonym]; }
+// Gleiche Effekte, gleiche Reihenfolge und Namen wie in der Android-App
++ (NSArray *)allEffects {
+    return @[MeshEffectNone, MeshEffectAnonym, MeshEffectHigh, MeshEffectChipmunk, MeshEffectChipmunkAnon,
+             MeshEffectDeep, MeshEffectRobot, MeshEffectAlien];
+}
 + (NSString *)effectLabel:(NSString *)e {
-    if ([e isEqualToString:MeshEffectHigh])  return L(@"High (chipmunk)");
-    if ([e isEqualToString:MeshEffectDeep])  return L(@"Deep");
-    if ([e isEqualToString:MeshEffectRobot]) return L(@"Robot");
-    if ([e isEqualToString:MeshEffectAlien]) return L(@"Alien");
-    if ([e isEqualToString:MeshEffectAnonym]) return L(@"Other voice (same tempo)");
+    if ([e isEqualToString:MeshEffectAnonym])       return L(@"Anonymous (recommended)");
+    if ([e isEqualToString:MeshEffectHigh])         return L(@"Higher");
+    if ([e isEqualToString:MeshEffectChipmunk])     return L(@"Chipmunk");
+    if ([e isEqualToString:MeshEffectChipmunkAnon]) return L(@"Chipmunk (disguised)");
+    if ([e isEqualToString:MeshEffectDeep])         return L(@"Deep");
+    if ([e isEqualToString:MeshEffectRobot])        return L(@"Robot");
+    if ([e isEqualToString:MeshEffectAlien])        return L(@"Alien");
     return L(@"Normal");
 }
 + (NSArray *)effectLabels {
